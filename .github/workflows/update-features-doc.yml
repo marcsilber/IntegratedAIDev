@@ -1,0 +1,160 @@
+name: Update ApplicationFeatures.md
+
+on:
+  # Runs after either deploy workflow completes on main
+  workflow_run:
+    workflows: ["Deploy API to Azure", "Deploy Frontend to Azure Static Web Apps"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  regenerate-features:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Gather source inventory
+        id: inventory
+        run: |
+          # Collect all source file contents into a single context file
+          {
+            echo "=== BACKEND CONTROLLERS ==="
+            for f in src/AIDev.Api/AIDev.Api/Controllers/*.cs; do
+              echo "--- $f ---"
+              cat "$f"
+              echo ""
+            done
+
+            echo "=== BACKEND SERVICES ==="
+            for f in src/AIDev.Api/AIDev.Api/Services/*.cs; do
+              echo "--- $f ---"
+              cat "$f"
+              echo ""
+            done
+
+            echo "=== BACKEND MODELS ==="
+            for f in src/AIDev.Api/AIDev.Api/Models/*.cs src/AIDev.Api/AIDev.Api/Models/DTOs/*.cs; do
+              echo "--- $f ---"
+              cat "$f"
+              echo ""
+            done
+
+            echo "=== FRONTEND COMPONENTS ==="
+            for f in src/AIDev.Web/src/components/*.tsx; do
+              echo "--- $f ---"
+              cat "$f"
+              echo ""
+            done
+
+            echo "=== FRONTEND SERVICES ==="
+            for f in src/AIDev.Web/src/services/*.ts; do
+              echo "--- $f ---"
+              cat "$f"
+              echo ""
+            done
+
+            echo "=== PROGRAM.CS ==="
+            cat src/AIDev.Api/AIDev.Api/Program.cs
+
+            echo "=== APPSETTINGS ==="
+            cat src/AIDev.Api/AIDev.Api/appsettings.json
+          } > /tmp/source-context.txt
+
+          # Truncate if exceeding ~80K chars to stay within token limits
+          head -c 80000 /tmp/source-context.txt > /tmp/source-context-trimmed.txt
+          echo "chars=$(wc -c < /tmp/source-context-trimmed.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Read current features doc
+        id: current
+        run: |
+          if [ -f ApplicationFeatures.md ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate updated ApplicationFeatures.md via GitHub Models
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          # Build the prompt JSON with Python to handle escaping properly
+          python3 << 'PYSCRIPT'
+          import json, subprocess, sys, os
+          from datetime import date
+
+          with open('/tmp/source-context-trimmed.txt') as f:
+              source = f.read()
+
+          payload = {
+              "model": "gpt-4o",
+              "temperature": 0.2,
+              "max_tokens": 8000,
+              "messages": [
+                  {
+                      "role": "system",
+                      "content": (
+                          "You are a technical writer for the AI Dev Pipeline product. "
+                          "Generate a comprehensive ApplicationFeatures.md file that inventories ALL implemented features. "
+                          "Use markdown tables organized by category. For each feature include: Feature name, Description, "
+                          "Phase (Phase 1 = Structured Intake, Phase 2 = Product Owner Agent), and Status (✅ Implemented or 🔲 Planned). "
+                          "Include a summary table at the end. Be thorough — every endpoint, UI component, model, service, "
+                          "and configuration should be catalogued. Include a 'Generated' date header. "
+                          "Output ONLY the markdown content, no code fences."
+                      )
+                  },
+                  {
+                      "role": "user",
+                      "content": f"Analyze the following source code and generate a complete ApplicationFeatures.md inventory. Today is {date.today().isoformat()}.\n\n{source}"
+                  }
+              ]
+          }
+
+          result = subprocess.run(
+              ["curl", "-s", "-X", "POST",
+               "https://models.inference.ai.azure.com/chat/completions",
+               "-H", "Content-Type: application/json",
+               "-H", f"Authorization: Bearer {os.environ['GITHUB_TOKEN']}",
+               "-d", json.dumps(payload)],
+              capture_output=True, text=True
+          )
+
+          resp = json.loads(result.stdout)
+          content = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+          if not content:
+              print("ERROR: No content in LLM response", file=sys.stderr)
+              print(json.dumps(resp, indent=2), file=sys.stderr)
+              sys.exit(1)
+
+          with open("ApplicationFeatures.md", "w") as f:
+              f.write(content)
+
+          print(f"Generated {len(content)} chars")
+          PYSCRIPT
+
+      - name: Check for changes
+        id: diff
+        run: |
+          git diff --quiet ApplicationFeatures.md && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push updated features doc
+        if: steps.diff.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ApplicationFeatures.md
+          git commit -m "docs: auto-update ApplicationFeatures.md after deploy
+
+          Regenerated feature inventory from current codebase via GitHub Models.
+          [skip ci]"
+          git push
