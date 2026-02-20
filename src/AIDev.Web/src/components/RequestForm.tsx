@@ -48,14 +48,20 @@ export default function RequestForm() {
   };
 
   return (
-    <div className="page">
-      <h1>Submit New Request</h1>
+    <div className="animate-[fadeIn_0.2s_ease-in]">
+      <h1 className="text-2xl font-bold text-slate-800 mb-6">Submit New Request</h1>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="bg-red-50 text-red-800 px-4 py-3 rounded-lg mb-4 border border-red-200">
+          {error}
+        </div>
+      )}
 
-      <form onSubmit={handleSubmit} className="request-form">
-        <div className="form-group">
-          <label htmlFor="title">Title *</label>
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-sm max-w-3xl">
+        <div className="mb-5">
+          <label htmlFor="title" className="block font-semibold mb-1.5 text-sm text-slate-800">
+            Title *
+          </label>
           <input
             id="title"
             type="text"
@@ -64,12 +70,15 @@ export default function RequestForm() {
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             placeholder="Short summary of the issue or request"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
 
-        <div className="form-row">
-          <div className="form-group">
-            <label htmlFor="requestType">Type</label>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="mb-5">
+            <label htmlFor="requestType" className="block font-semibold mb-1.5 text-sm text-slate-800">
+              Type
+            </label>
             <select
               id="requestType"
               value={form.requestType}
@@ -79,6 +88,7 @@ export default function RequestForm() {
                   requestType: e.target.value as RequestType,
                 })
               }
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
             >
               {requestTypes.map((t) => (
                 <option key={t} value={t}>
@@ -88,14 +98,17 @@ export default function RequestForm() {
             </select>
           </div>
 
-          <div className="form-group">
-            <label htmlFor="priority">Priority</label>
+          <div className="mb-5">
+            <label htmlFor="priority" className="block font-semibold mb-1.5 text-sm text-slate-800">
+              Priority
+            </label>
             <select
               id="priority"
               value={form.priority}
               onChange={(e) =>
                 setForm({ ...form, priority: e.target.value as Priority })
               }
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
             >
               {priorities.map((p) => (
                 <option key={p} value={p}>
@@ -106,8 +119,10 @@ export default function RequestForm() {
           </div>
         </div>
 
-        <div className="form-group">
-          <label htmlFor="description">Description *</label>
+        <div className="mb-5">
+          <label htmlFor="description" className="block font-semibold mb-1.5 text-sm text-slate-800">
+            Description *
+          </label>
           <textarea
             id="description"
             required
@@ -115,13 +130,16 @@ export default function RequestForm() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Detailed explanation of the issue or feature request"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
 
         {form.requestType === "Bug" && (
           <>
-            <div className="form-group">
-              <label htmlFor="stepsToReproduce">Steps to Reproduce</label>
+            <div className="mb-5">
+              <label htmlFor="stepsToReproduce" className="block font-semibold mb-1.5 text-sm text-slate-800">
+                Steps to Reproduce
+              </label>
               <textarea
                 id="stepsToReproduce"
                 rows={4}
@@ -130,11 +148,14 @@ export default function RequestForm() {
                   setForm({ ...form, stepsToReproduce: e.target.value })
                 }
                 placeholder="1. Go to...&#10;2. Click on...&#10;3. Observe..."
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="expectedBehavior">Expected Behavior</label>
+            <div className="mb-5">
+              <label htmlFor="expectedBehavior" className="block font-semibold mb-1.5 text-sm text-slate-800">
+                Expected Behavior
+              </label>
               <textarea
                 id="expectedBehavior"
                 rows={3}
@@ -143,11 +164,14 @@ export default function RequestForm() {
                   setForm({ ...form, expectedBehavior: e.target.value })
                 }
                 placeholder="What should happen?"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
 
-            <div className="form-group">
-              <label htmlFor="actualBehavior">Actual Behavior</label>
+            <div className="mb-5">
+              <label htmlFor="actualBehavior" className="block font-semibold mb-1.5 text-sm text-slate-800">
+                Actual Behavior
+              </label>
               <textarea
                 id="actualBehavior"
                 rows={3}
@@ -156,18 +180,23 @@ export default function RequestForm() {
                   setForm({ ...form, actualBehavior: e.target.value })
                 }
                 placeholder="What actually happens?"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
           </>
         )}
 
-        <div className="form-actions">
-          <button type="submit" className="btn btn-primary" disabled={loading}>
+        <div className="flex gap-3 mt-6">
+          <button
+            type="submit"
+            className="inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover cursor-pointer transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={loading}
+          >
             {loading ? "Submitting..." : "Submit Request"}
           </button>
           <button
             type="button"
-            className="btn btn-secondary"
+            className="inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 cursor-pointer transition-all duration-150"
             onClick={() => navigate("/")}
           >
             Cancel
