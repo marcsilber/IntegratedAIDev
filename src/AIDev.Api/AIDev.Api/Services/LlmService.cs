@@ -75,17 +75,26 @@ public class LlmService : ILlmService
            - Would it strengthen the sales pack / value proposition?
            - Does it serve the target audience?
         
-        4. DUPLICATE / ALREADY EXISTS CHECK:
+        4. ALREADY IMPLEMENTED CHECK (CRITICAL — do this FIRST):
+           - Check the ApplicationFeatures reference document above for features marked as IMPLEMENTED (|IMPL).
+           - If the request describes functionality that is ALREADY IMPLEMENTED in the application,
+             you MUST reject it and clearly state that the feature already exists.
+           - This applies even if the wording differs — match on functionality, not exact phrasing.
+             For example: "Upload file" matches "File upload" / "File Attachments" if already implemented.
+        
+        5. DUPLICATE REQUEST CHECK:
            - Compare against the EXISTING REQUESTS list provided below.
-           - If the request describes functionality that already exists, is already being worked on,
-             or has already been completed (status Done/InProgress/Approved/Triaged), flag it as a duplicate.
+           - If the request duplicates another request that is Done/InProgress/Approved/Triaged, flag it.
            - If a similar request was previously Rejected, note this but still evaluate on merit.
            - Consider both exact duplicates and requests that substantially overlap.
         
-        DECISION RULES:
+        DECISION RULES (applied in order):
+        - REJECT if the requested functionality is already implemented per ApplicationFeatures.
+          State: "This feature already exists" and describe the existing implementation.
+          Set isDuplicate=true and duplicateOfRequestId=null (not a request duplicate, but feature exists).
         - REJECT if the request is a duplicate of an existing Done/InProgress/Approved request.
           Clearly state which existing request(s) it duplicates.
-        - APPROVE if alignment >= 60 AND completeness >= 50 AND not a duplicate.
+        - APPROVE if alignment >= 60 AND completeness >= 50 AND not a duplicate AND not already implemented.
         - CLARIFY if completeness < 50: The request lacks detail. Ask specific questions.
         - REJECT if alignment < 30: The request is clearly out of scope or contradicts product direction.
         - When in doubt between approve and clarify, prefer clarify.
