@@ -1,8 +1,8 @@
 namespace AIDev.Api.Services;
 
 /// <summary>
-/// Loads and caches reference documents (ApplicationObjectives.md, ApplicationSalesPack.md,
-/// ApplicationFeatures.md) used as context in the Product Owner Agent's system prompt.
+/// Loads and caches reference documents used as context in the Product Owner Agent's system prompt.
+/// Prefers compact LLM-optimized .context files when available, falling back to human-readable .md files.
 /// </summary>
 public interface IReferenceDocumentService
 {
@@ -19,11 +19,13 @@ public class ReferenceDocumentService : IReferenceDocumentService
     private string? _cachedContext;
     private readonly object _lock = new();
 
-    private static readonly string[] ReferenceFiles = 
+    // Ordered by priority: Objectives (highest) → SalesPack → Features (lowest).
+    // For each logical doc, prefer the .context (LLM-optimized) over .md (human-readable).
+    private static readonly (string ContextFile, string FallbackFile)[] ReferenceFiles =
     {
-        "ApplicationObjectives.md",
-        "ApplicationSalesPack.md",
-        "ApplicationFeatures.md"
+        ("ApplicationObjectives.context", "ApplicationObjectives.md"),
+        ("ApplicationSalesPack.context",  "ApplicationSalesPack.md"),
+        ("ApplicationFeatures.context",   "ApplicationFeatures.md"),
     };
 
     public ReferenceDocumentService(IConfiguration configuration, IWebHostEnvironment env, ILogger<ReferenceDocumentService> logger)
@@ -68,20 +70,28 @@ public class ReferenceDocumentService : IReferenceDocumentService
 
     private string BuildContext()
     {
-        // Load all documents
+        // Load all documents, preferring .context (compact) over .md (verbose)
         var docs = new List<(string FileName, string Content)>();
-        foreach (var fileName in ReferenceFiles)
+        foreach (var (contextFile, fallbackFile) in ReferenceFiles)
         {
-            var path = Path.Combine(_docsPath, fileName);
-            if (File.Exists(path))
+            var contextPath = Path.Combine(_docsPath, contextFile);
+            var fallbackPath = Path.Combine(_docsPath, fallbackFile);
+
+            if (File.Exists(contextPath))
             {
-                var content = File.ReadAllText(path);
-                docs.Add((fileName, content));
-                _logger.LogInformation("Loaded reference document: {FileName} ({Length} chars)", fileName, content.Length);
+                var content = File.ReadAllText(contextPath);
+                docs.Add((contextFile, content));
+                _logger.LogInformation("Loaded LLM-optimized context: {FileName} ({Length} chars)", contextFile, content.Length);
+            }
+            else if (File.Exists(fallbackPath))
+            {
+                var content = File.ReadAllText(fallbackPath);
+                docs.Add((fallbackFile, content));
+                _logger.LogInformation("Loaded fallback document: {FileName} ({Length} chars) — generate .context file for better token efficiency", fallbackFile, content.Length);
             }
             else
             {
-                _logger.LogWarning("Reference document not found: {Path}", path);
+                _logger.LogWarning("Reference document not found: neither {Context} nor {Fallback}", contextPath, fallbackPath);
             }
         }
 

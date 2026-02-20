@@ -1,0 +1,21 @@
+#SALESPACK|AI Dev Pipeline|2026-02-20
+PITCH|Testers find issues, AI agents fix them, you stay in control
+PROBLEM|Testers find bugs faster than devs fix them;serial workflow=days per fix;backlog grows
+COMPARE|Traditional:ad-hoc reports,manual triage,serial dev,deploy-per-fix,hours-to-days|AIDev:structured forms,AI triage,parallel branches,batch deploy,minutes-to-hour
+FEAT|Structured req intake|web form;rich context(priority,steps,expected,actual,screenshots,attachments);multi-project;GitHub Issues sync
+FEAT|AI PO Agent|auto-triage vs objectives+salespack;clarification requests;approve/reject with reasoning;alignment validation
+FEAT|AI Architect Agent|codebase-aware solution design;impact analysis(files,migrations,breaking changes);human review step;architectural consistency
+FEAT|AI Planning Agent|auto branch mgmt;parallel AI impl agents;progress monitoring;merge coordination;batch UAT deploy
+FEAT|Dashboard|pipeline view;status breakdowns by type/priority/stage;UAT schedule;user activity+agent performance
+FEAT|Security|Entra ID auth;JWT validation;role-based access;Key Vault secrets
+FEAT|CI/CD|GitHub Actions auto-deploy on push;Azure hosted;zero-downtime
+BENEFIT_TESTER|Never blocked;structured forms;real-time visibility;paste screenshots+attach files
+BENEFIT_PO|80%+ triage automated;transparent decisions;objectives validation
+BENEFIT_ARCHITECT|Solution proposals before code;architectural consistency;structured review
+BENEFIT_DEV|Parallel work 3+ branches;bug→fix <1hr;batch deploys;AI handles routine
+BENEFIT_MGMT|Measurable throughput;predictable delivery;reduced cost/fix;scaleable
+TECH|Frontend:React19+TypeScript+Vite|Backend:.NET10+C#+EFCore|Auth:Entra ID|SCM:GitHub+Octokit|CI/CD:GitHub Actions|Host:Azure AppService+StaticWebApps|DB:SQLite→Azure SQL
+DEPLOY|Azure cloud|On-premises|Hybrid
+TIER|Starter|intake+sync+dashboard;5 users,1 project
+TIER|Professional|+PO Agent+Architect Agent;25 users,5 projects
+TIER|Enterprise|+Planning Agent+parallel impl+batch deploy;unlimited

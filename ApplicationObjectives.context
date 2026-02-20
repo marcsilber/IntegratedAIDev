@@ -1,0 +1,22 @@
+#OBJECTIVES|AI Dev Pipeline|2026-02-20
+GOAL|Accelerate feedback loop|reduce issue-to-fix time by 10x;parallel submissions;AI triage+design+impl;batch deploys;real-time visibility
+GOAL|Structured req intake|standardised forms;context capture:steps,expected,actual,priority,attachments;project linking;GitHub Issues sync;types:Bug,Feature,Enhancement,Question
+GOAL|AI triage (PO Agent)|auto-review vs objectives+salespack;clarify when insufficient detail;approve/reject/defer with reasoning;reduce human PO bottleneck
+GOAL|AI solution design (Architect Agent)|codebase-aware proposals;file-level impact analysis;migration+breaking change+dependency risks;human review before impl;architectural consistency
+GOAL|Parallel impl (Planning Agent)|isolated feature branches;multiple AI coding agents;progress+test+build monitoring;merge coordination;batch UAT deploy
+GOAL|Human-in-the-loop|human approval before impl;testers can challenge AI;dashboard visibility;all agent reasoning logged as comments
+GOAL|Multi-project support|multiple GitHub repos;project selection at submission;per-project config;admin interface
+NFR|Security|Entra ID auth;JWT bearer validation;role-based access(tester,admin);secrets in Key Vault/User Secrets
+NFR|Reliability|CI/CD via GitHub Actions;Azure hosted(App Service+Static Web Apps);SQLite→Azure SQL upgrade path;graceful degradation
+NFR|DevEx|AI pair-programming workflow;local hot-reload(Vite+dotnet watch);minimal manual steps
+NFR|Observability|dashboard:progress,status,activity;UAT schedule;user trends
+SUCCESS|Time bug→UAT fix|<1 hour
+SUCCESS|Parallel streams|3+ simultaneous
+SUCCESS|Triage automation|80%+ without human
+SUCCESS|Architect quality|90%+ accepted first review
+SUCCESS|Deploy frequency|2-3x/day batched
+PRINCIPLE|Automate routine, escalate exceptional
+PRINCIPLE|Transparency over black-box — all AI decisions logged with reasoning
+PRINCIPLE|Speed through parallelism — never wait for current fix
+PRINCIPLE|Structure enables speed — structured intake → faster AI triage
+PRINCIPLE|Incremental delivery — phases, each delivering immediate value

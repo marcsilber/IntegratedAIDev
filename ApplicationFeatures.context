@@ -1,0 +1,155 @@
+#FEATURES|AI Dev Pipeline|2026-02-20|123 implemented + 16 planned
+AUTH|Entra ID SSO|MSAL.js OAuth redirect;Microsoft.Identity.Web JWT validation|IMPL
+AUTH|JWT bearer protection|[Authorize] on all API endpoints;token validated vs Entra tenant|IMPL
+AUTH|User claim extraction|name,preferred_username,upn,email from JWT|IMPL
+AUTH|MSAL token interceptor|Axios interceptor;acquireTokenSilent+interactive fallback|IMPL
+AUTH|Login/logout UI|navbar sign-in/out;AuthenticatedTemplate gates content|IMPL
+AUTH|Role-based access|tester/admin roles from Entra claims|PLAN
+REQ|Structured submission form|project,title,desc,type(Bug/Feature/Enhancement/Question),priority(Low/Med/High/Critical);validation|IMPL
+REQ|Bug-specific fields|Steps to reproduce,expected,actual behavior;conditional show/hide|IMPL
+REQ|Project selection dropdown|from GET /api/projects;auto-select if single project|IMPL
+REQ|Post-submit redirect|navigates to new request detail page|IMPL
+REQ|Request list view|table:ID,title,project,type,priority,status,submitter,date,GitHub link;newest first|IMPL
+REQ|Search filter|free-text search titles+descriptions server-side|IMPL
+REQ|Status filter|dropdown:New,NeedsClarification,Triaged,Approved,InProgress,Done,Rejected|IMPL
+REQ|Type filter|dropdown:Bug,Feature,Enhancement,Question|IMPL
+REQ|Priority filter|server-side filtering by priority|IMPL
+REQ|URL query params|filter state in URL;bookmarkable|IMPL
+REQ|Color-coded badges|status+priority distinct colors|IMPL
+REQ|Empty state|friendly message+link when no results|IMPL
+REQ|Full request detail|all fields:title,desc,project,type,priority,status,submitter,timestamps,bug fields|IMPL
+REQ|Status update buttons|7 status buttons;active highlighted|IMPL
+REQ|GitHub issue link|clickable GitHub Issue #N|IMPL
+REQ|Delete request|confirmation dialog;removes+navigates back|IMPL
+REQ|Back to list nav|return to request list|IMPL
+API|POST /api/requests|create with validation;user claims;triggers GitHub Issue;returns 201|IMPL
+API|GET /api/requests|list with filters:status,type,priority,search;includes comments,project,attachments,agent reviews|IMPL
+API|GET /api/requests/{id}|single request with all related data|IMPL
+API|PUT /api/requests/{id}|partial update;syncs to GitHub Issue|IMPL
+API|DELETE /api/requests/{id}|hard delete|IMPL
+COMMENT|Add comment|text input;author from JWT|IMPL
+COMMENT|Display|chronological;author+timestamp|IMPL
+COMMENT|Agent comments visual|purple border+bg;robot emoji prefix|IMPL
+COMMENT|IsAgentComment flag|boolean distinguishes human vs agent|IMPL
+COMMENT|AgentReviewId link|links comment to specific AgentReview|IMPL
+COMMENT|Comment count|shown in section heading|IMPL
+ATTACH|File upload|POST multipart;multiple files;10MB total/5MB per file;GUID filenames|IMPL
+ATTACH|Download|GET with original content-type+filename;authenticated|IMPL
+ATTACH|Delete|removes from disk+DB|IMPL
+ATTACH|Drag & drop|drop zone with hover feedback|IMPL
+ATTACH|Click to browse|native file picker;images,PDF,text,Word|IMPL
+ATTACH|Clipboard paste|onPaste handler;screenshot upload|IMPL
+ATTACH|Auth image thumbnails|AuthImage component;blob URL+cleanup|IMPL
+ATTACH|Attachment grid|filename,size,delete btn,download link|IMPL
+GITHUB|Issue auto-creation|on POST /api/requests;formatted markdown body;non-blocking|IMPL
+GITHUB|Issue body format|type,priority,status,submitter,timestamps,desc,steps,expected,actual|IMPL
+GITHUB|Label mapping|type→bug/feature/enhancement;priority→priority:low/med/high/critical|IMPL
+GITHUB|Issue number+URL storage|stored on DevRequest;displayed in UI|IMPL
+GITHUB|Issue update on change|PUT syncs title,body,state to GitHub|IMPL
+GITHUB|Issue state sync|Done/Rejected→closes GitHub Issue|IMPL
+GITHUB|NullGitHubService|no-op fallback when PAT not configured|IMPL
+GITHUB|Repository listing|GetRepositoriesAsync for admin sync|IMPL
+PROJECT|Data model|GitHubOwner,GitHubRepo,DisplayName,Description,FullName,IsActive,LastSyncedAt|IMPL
+PROJECT|Active projects API|GET /api/projects;active only|IMPL
+PROJECT|Admin projects API|GET /api/admin/projects;all projects|IMPL
+PROJECT|GitHub repo sync|POST /api/admin/projects/sync;upserts from GitHub;new=inactive|IMPL
+PROJECT|Project update|PUT /api/admin/projects/{id};rename,desc,toggle active|IMPL
+PROJECT|Admin settings UI|project table,sync btn,active toggle,rename,request count|IMPL
+PROJECT|Multi-project support|requests scoped to project;form dropdown|IMPL
+AGENT|Background polling|ProductOwnerAgentService BackgroundService;configurable interval(30s default)|IMPL
+AGENT|New request auto-review|picks up Status=New,AgentReviewCount=0|IMPL
+AGENT|Clarification re-review|re-processes NeedsClarification when human comment posted after last review|IMPL
+AGENT|Max reviews cap|configurable(default 3);prevents infinite clarify loops|IMPL
+AGENT|Batch limit|max 5 per cycle;avoids rate limiting|IMPL
+AGENT|Error isolation|per-request;one failure doesn't block others;retried next cycle|IMPL
+AGENT|Enable/disable config|ProductOwnerAgent:Enabled toggle|IMPL
+AGENT|Startup delay|5s delay for app initialization|IMPL
+LLM|GitHub Models API|OpenAI SDK→models.inference.ai.azure.com;GitHub PAT auth|IMPL
+LLM|GPT-4o model|default gpt-4o;configurable via GitHubModels:ModelName|IMPL
+LLM|System prompt with ref docs|includes ApplicationObjectives+SalesPack+Features for alignment eval|IMPL
+LLM|Structured JSON response|decision,reasoning,scores(alignment,completeness,sales),clarify questions,priority,tags,isDuplicate|IMPL
+LLM|Response parsing+fallback|JSON parse with markdown fence strip;parse fail→Clarify+human escalation|IMPL
+LLM|Token usage tracking|prompt+completion tokens per review|IMPL
+LLM|Timing tracking|duration ms per review|IMPL
+LLM|Configurable temp+tokens|temperature(0.3),max_tokens(2000) via appsettings|IMPL
+REFDOCS|File-based loading|loads from configurable path|IMPL
+REFDOCS|LLM-optimized .context preference|prefers compact .context files;falls back to .md|IMPL
+REFDOCS|In-memory caching|thread-safe with lock|IMPL
+REFDOCS|Cache reload|Reload() clears cache;re-reads on next access|IMPL
+REFDOCS|Graceful fallback|no docs→"use best judgment" prompt|IMPL
+REFDOCS|Smart truncation|MaxContextChars budget;priority-based;Objectives>SalesPack>Features|IMPL
+DECISION|Approve→Triaged|alignment>=60,completeness>=50,not duplicate;comment with scores|IMPL
+DECISION|Reject→Rejected|alignment<30 or duplicate;reasoning comment|IMPL
+DECISION|Clarify→NeedsClarification|completeness<50;specific questions comment|IMPL
+DECISION|NeedsClarification status|enables clarify conversation loop|IMPL
+DECISION|Alignment score 0-100|vs product objectives|IMPL
+DECISION|Completeness score 0-100|enough detail to act on|IMPL
+DECISION|Sales alignment score 0-100|supports market positioning|IMPL
+DECISION|Suggested priority|agent can override submitter's priority|IMPL
+DECISION|Suggested tags|proposed labels e.g. ui,performance,data-model|IMPL
+DUPLICATE|Existing request comparison|fetches 50 existing reqs from same project;included in LLM prompt|IMPL
+DUPLICATE|isDuplicate flag|boolean in LLM response|IMPL
+DUPLICATE|Duplicate warning comment|⚠️ with reference to duplicated request|IMPL
+DUPLICATE|Reject duplicate rule|rejects if duplicates Done/InProgress/Approved/Triaged request|IMPL
+REVIEW|AgentReview entity|decision,reasoning,3 scores,priority,tags(JSON),tokens,model,duration,timestamp|IMPL
+REVIEW|Agent type field|"ProductOwner";extensible for Architect,Planning agents|IMPL
+REVIEW|Request-review relationship|one-to-many;LastAgentReviewAt+AgentReviewCount on request|IMPL
+REVIEW|Latest review in DTO|RequestResponseDto includes LatestAgentReview+AgentReviewCount|IMPL
+AGENTAPI|GET /api/agent/reviews|list with filters:requestId,decision;newest first|IMPL
+AGENTAPI|GET /api/agent/reviews/{id}|single review full detail|IMPL
+AGENTAPI|POST /api/agent/reviews/{id}/override|changes status;posts "Manual Override" comment|IMPL
+AGENTAPI|GET /api/agent/stats|totals,by-decision counts,avg scores,total tokens,avg response time|IMPL
+AGENTAPI|GET /api/agent/config|current agent config from appsettings|IMPL
+AGENTAPI|Manual re-review trigger|API to queue request for re-review|PLAN
+AGENTAPI|Agent config update|PUT /api/agent/config for runtime changes|PLAN
+UI_AGENT|Review card|on request detail;decision badge,reasoning,3 color-coded scores,priority,tags,model,duration,tokens|IMPL
+UI_AGENT|Override approve btn|human override→Approved;optional reason prompt|IMPL
+UI_AGENT|Override reject btn|human override→Rejected;optional reason prompt|IMPL
+UI_AGENT|Score color coding|alignment>=60,completeness>=50→green;else red|IMPL
+UI_AGENT|Review metadata|count,timestamp,model,response time,tokens|IMPL
+DASH|Summary cards|Total,New,InProgress,Done|IMPL
+DASH|Status breakdown|counts by status;non-zero only|IMPL
+DASH|Type breakdown|counts by type|IMPL
+DASH|Priority breakdown|counts by priority|IMPL
+DASH|Recent requests|last 10 with links;ID,title,status,priority,date|IMPL
+DASH|Agent stats|reviews total,approved/clarify/rejected,avg alignment+completeness,tokens,response time|IMPL
+DASH|Dashboard API|GET /api/dashboard;all stats+breakdowns+recent|IMPL
+ADMIN|Project management table|all projects;name,repo link,desc,request count,active toggle,rename|IMPL
+ADMIN|Sync from GitHub btn|fetches repos via Octokit;upserts;shows count|IMPL
+ADMIN|Active toggle|per-project enable/disable|IMPL
+ADMIN|Project rename|prompt dialog;updates display name|IMPL
+ADMIN|Agent config display|read-only:enabled,model,polling interval,max reviews,temperature|IMPL
+ADMIN|Agent config update UI|editable form for runtime config|PLAN
+NAV|React Router SPA|routes:/,/new,/requests/:id,/dashboard,/admin|IMPL
+NAV|Navbar|brand(⚡ AI Dev Pipeline),nav links,user name,sign in/out|IMPL
+NAV|Active nav links|NavLink highlights current route|IMPL
+NAV|Login prompt page|product desc+sign in btn for unauthed users|IMPL
+NAV|Error banners|consistent error styling across pages|IMPL
+NAV|Loading states|indicators on all data-fetch pages|IMPL
+ENTITY|DevRequest|title,desc,type,priority,status,submittedBy,email,projectId,gitHubIssueNo,url,lastAgentReviewAt,agentReviewCount|IMPL
+ENTITY|RequestComment|author,content,isAgentComment,agentReviewId|IMPL
+ENTITY|Project|gitHubOwner,gitHubRepo,displayName,desc,fullName,isActive,lastSyncedAt|IMPL
+ENTITY|Attachment|fileName,contentType,fileSizeBytes,storedPath,uploadedBy|IMPL
+ENTITY|AgentReview|agentType,decision,reasoning,alignmentScore,completenessScore,salesAlignmentScore,suggestedPriority,tags,promptTokens,completionTokens,modelUsed,durationMs|IMPL
+INFRA|SQLite+EF Core|auto-migration on startup|IMPL
+INFRA|5 EF migrations|InitialCreate,AddProjects,AddAttachments,AddProductOwnerAgent|IMPL
+INFRA|String enum serialization|DB+JSON via JsonStringEnumConverter|IMPL
+INFRA|CORS config|AllowedOrigins from appsettings;default localhost:5173|IMPL
+INFRA|OpenAPI/Swagger|MapOpenApi in development|IMPL
+INFRA|HTTPS enforcement|UseHttpsRedirection;localhost:7251|IMPL
+INFRA|Static file uploads|uploads/ directory;GUID filenames|IMPL
+INFRA|Conditional service registration|GitHub+LLM+Agent only when PAT configured|IMPL
+INFRA|Vite+React 19|TypeScript;hot-reload dev;production build for Static Web Apps|IMPL
+INFRA|Environment config|VITE_API_URL frontend;appsettings+User Secrets backend|IMPL
+CICD|GitHub Actions deploy-api|auto-deploy .NET API to Azure App Service on push to main|IMPL
+CICD|GitHub Actions deploy-web|auto-deploy React to Azure Static Web Apps on push to main|IMPL
+CICD|Auto-update features doc|workflow regenerates ApplicationFeatures.md+.context files after deploy|IMPL
+PLAN|Architect Agent|reads codebase;proposes solutions with impact analysis|PLAN
+PLAN|Planning Agent|feature branches;AI impl agents;progress monitoring;merge;batch UAT deploy|PLAN
+PLAN|GitHub agent labels|agent:approved/rejected/needs-info on Issues|PLAN
+PLAN|GitHub agent comments|post reasoning on GitHub Issues|PLAN
+PLAN|RBAC enforcement|tester vs admin from Entra claims|PLAN
+PLAN|Agent config runtime update|PUT /api/agent/config|PLAN
+PLAN|Token budget alerting|daily/monthly usage alerts|PLAN
+PLAN|SignalR real-time|push notifications for status changes|PLAN
+PLAN|Azure SQL upgrade|SQLite→Azure SQL for production|PLAN

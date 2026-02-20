@@ -1,4 +1,4 @@
-name: Update ApplicationFeatures.md
+name: Update Feature Docs & LLM Context
 
 on:
   # Runs after either deploy workflow completes on main
@@ -87,7 +87,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GH_PAT }}
         run: |
-          # Build the prompt JSON with Python to handle escaping properly
           python3 << 'PYSCRIPT'
           import json, subprocess, sys, os
           from datetime import date
@@ -121,7 +120,7 @@ jobs:
 
           result = subprocess.run(
               ["curl", "-s", "-X", "POST",
-               "https://models.inference.ai.azure.com/chat/completions",
+               "https://models.inference.ai.github.com/chat/completions",
                "-H", "Content-Type: application/json",
                "-H", f"Authorization: Bearer {os.environ['GITHUB_TOKEN']}",
                "-d", json.dumps(payload)],
@@ -139,22 +138,116 @@ jobs:
           with open("ApplicationFeatures.md", "w") as f:
               f.write(content)
 
-          print(f"Generated {len(content)} chars")
+          print(f"Generated ApplicationFeatures.md: {len(content)} chars")
+          PYSCRIPT
+
+      - name: Generate LLM-optimized .context files
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          python3 << 'PYSCRIPT'
+          import json, subprocess, sys, os
+
+          def generate_context_file(source_file, output_file, doc_type):
+              """Read a human-readable .md and produce a compact .context version."""
+              if not os.path.exists(source_file):
+                  print(f"SKIP: {source_file} not found")
+                  return
+
+              with open(source_file) as f:
+                  source = f.read()
+
+              prompts = {
+                  "objectives": (
+                      "Compress the following product objectives document into a minimal-token format "
+                      "optimized for LLM context injection (NOT human reading). Rules:\n"
+                      "- Use pipe-delimited lines: CATEGORY|item|key details\n"
+                      "- One line per objective, criterion, or principle\n"
+                      "- Use abbreviations: auth=authentication, config=configuration, repo=repository, "
+                      "req=request, impl=implementation, dev=development, mgmt=management\n"
+                      "- Omit markdown formatting, headers, blank lines, prose\n"
+                      "- Preserve ALL information — completeness is critical\n"
+                      "- Start with a single header line: #OBJECTIVES|AI Dev Pipeline|<date>\n"
+                      "- Target: under 1500 chars total"
+                  ),
+                  "salespack": (
+                      "Compress the following product sales/marketing document into a minimal-token format "
+                      "optimized for LLM context injection (NOT human reading). Rules:\n"
+                      "- Use pipe-delimited lines: CATEGORY|item|key details\n"
+                      "- One line per feature, benefit, differentiator, or pricing tier\n"
+                      "- Use abbreviations: auth=authentication, config=configuration, repo=repository, "
+                      "req=request, impl=implementation, dev=development, mgmt=management\n"
+                      "- Omit markdown formatting, headers, blank lines, prose\n"
+                      "- Preserve ALL information — completeness is critical\n"
+                      "- Start with a single header line: #SALESPACK|AI Dev Pipeline|<date>\n"
+                      "- Target: under 2000 chars total"
+                  ),
+                  "features": (
+                      "Compress the following feature inventory into a minimal-token format "
+                      "optimized for LLM context injection (NOT human reading). Rules:\n"
+                      "- Use pipe-delimited lines: CATEGORY|feature_name|key details|status\n"
+                      "- status: IMPL=implemented, PLAN=planned\n"
+                      "- One line per feature — no sub-bullets, no descriptions longer than 15 words\n"
+                      "- Use abbreviations: auth=authentication, config=configuration, repo=repository, "
+                      "req=request, impl=implementation, dev=development, mgmt=management, "
+                      "CRUD=create/read/update/delete, UI=user interface, API=api endpoint\n"
+                      "- Omit markdown formatting, headers, blank lines, prose\n"
+                      "- Every single feature MUST be listed — completeness is critical for duplicate detection\n"
+                      "- Start with a single header line: #FEATURES|AI Dev Pipeline|<date>|<feature_count>\n"
+                      "- Target: under 4000 chars total"
+                  )
+              }
+
+              payload = {
+                  "model": "gpt-4o",
+                  "temperature": 0.1,
+                  "max_tokens": 2000,
+                  "messages": [
+                      {"role": "system", "content": prompts[doc_type]},
+                      {"role": "user", "content": source}
+                  ]
+              }
+
+              result = subprocess.run(
+                  ["curl", "-s", "-X", "POST",
+                   "https://models.inference.ai.github.com/chat/completions",
+                   "-H", "Content-Type: application/json",
+                   "-H", f"Authorization: Bearer {os.environ['GITHUB_TOKEN']}",
+                   "-d", json.dumps(payload)],
+                  capture_output=True, text=True
+              )
+
+              resp = json.loads(result.stdout)
+              content = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+              if not content:
+                  print(f"ERROR: No content for {output_file}", file=sys.stderr)
+                  print(json.dumps(resp, indent=2), file=sys.stderr)
+                  return
+
+              with open(output_file, "w") as f:
+                  f.write(content)
+
+              print(f"Generated {output_file}: {len(content)} chars (from {len(source)} chars = {len(content)*100//len(source)}% of original)")
+
+          generate_context_file("ApplicationObjectives.md", "ApplicationObjectives.context", "objectives")
+          generate_context_file("ApplicationSalesPack.md",  "ApplicationSalesPack.context",  "salespack")
+          generate_context_file("ApplicationFeatures.md",   "ApplicationFeatures.context",   "features")
           PYSCRIPT
 
       - name: Check for changes
         id: diff
         run: |
-          git diff --quiet ApplicationFeatures.md && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
+          git diff --quiet -- '*.md' '*.context' && echo "changed=false" >> "$GITHUB_OUTPUT" || echo "changed=true" >> "$GITHUB_OUTPUT"
 
-      - name: Commit and push updated features doc
+      - name: Commit and push updated docs
         if: steps.diff.outputs.changed == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ApplicationFeatures.md
-          git commit -m "docs: auto-update ApplicationFeatures.md after deploy
+          git add ApplicationFeatures.md ApplicationObjectives.context ApplicationSalesPack.context ApplicationFeatures.context
+          git commit -m "docs: auto-update feature docs and LLM context files after deploy
 
-          Regenerated feature inventory from current codebase via GitHub Models.
+          Regenerated from current codebase via GitHub Models.
           [skip ci]"
           git push
