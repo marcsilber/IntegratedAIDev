@@ -96,44 +96,50 @@ export default function RequestDetail() {
     }
   }
 
-  if (loading) return <div className="loading">Loading...</div>;
-  if (!request) return <div className="error-banner">Request not found</div>;
+  if (loading) return <div className="text-center py-12 text-muted">Loading...</div>;
+  if (!request) return <div className="bg-red-50 text-red-800 px-4 py-3 rounded-lg border border-red-200">Request not found</div>;
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <Link to="/" className="btn btn-secondary">
+    <div className="animate-[fadeIn_0.2s_ease-in]">
+      <div className="flex items-center justify-between mb-6">
+        <Link
+          to="/"
+          className="inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-slate-100 text-slate-800 border border-slate-200 hover:bg-slate-200 no-underline transition-all duration-150"
+        >
           ← Back to List
         </Link>
-        <button className="btn btn-danger" onClick={handleDelete}>
+        <button
+          className="inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-danger text-white hover:bg-danger-hover cursor-pointer transition-all duration-150"
+          onClick={handleDelete}
+        >
           Delete
         </button>
       </div>
 
-      {error && <div className="error-banner">{error}</div>}
+      {error && (
+        <div className="bg-red-50 text-red-800 px-4 py-3 rounded-lg mb-4 border border-red-200">
+          {error}
+        </div>
+      )}
 
-      <div className="request-detail">
-        <div className="detail-header">
-          <h1>
+      <div className="bg-white rounded-lg shadow-sm p-8">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 mb-3">
             #{request.id} — {request.title}
           </h1>
-          <div className="detail-meta">
+          <div className="flex gap-2 items-center flex-wrap mb-6">
             <span
-              className="badge"
-              style={{
-                backgroundColor: statusColors[request.status],
-                color: "#fff",
-              }}
+              className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap text-white"
+              style={{ backgroundColor: statusColors[request.status] }}
             >
               {request.status}
             </span>
-            <span className="badge badge-type">{request.requestType}</span>
+            <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap bg-indigo-100 text-indigo-800">
+              {request.requestType}
+            </span>
             <span
-              className="badge"
-              style={{
-                backgroundColor: priorityColors[request.priority],
-                color: "#fff",
-              }}
+              className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap text-white"
+              style={{ backgroundColor: priorityColors[request.priority] }}
             >
               {request.priority}
             </span>
@@ -142,7 +148,7 @@ export default function RequestDetail() {
                 href={request.gitHubIssueUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="github-link"
+                className="text-primary no-underline font-medium hover:underline"
               >
                 GitHub Issue #{request.gitHubIssueNumber}
               </a>
@@ -150,57 +156,61 @@ export default function RequestDetail() {
           </div>
         </div>
 
-        <div className="detail-info">
-          <p>
+        <div className="mb-6 p-4 bg-slate-50 rounded-lg">
+          <p className="mb-1 text-sm">
             <strong>Submitted by:</strong> {request.submittedBy} (
             {request.submittedByEmail})
           </p>
-          <p>
+          <p className="mb-1 text-sm">
             <strong>Created:</strong>{" "}
             {new Date(request.createdAt).toLocaleString()}
           </p>
-          <p>
+          <p className="mb-1 text-sm">
             <strong>Updated:</strong>{" "}
             {new Date(request.updatedAt).toLocaleString()}
           </p>
         </div>
 
-        <div className="detail-section">
-          <h2>Description</h2>
-          <p className="detail-text">{request.description}</p>
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <h2 className="text-lg font-semibold mb-3 text-slate-800">Description</h2>
+          <p className="whitespace-pre-wrap leading-7 text-slate-800">{request.description}</p>
         </div>
 
         {request.stepsToReproduce && (
-          <div className="detail-section">
-            <h2>Steps to Reproduce</h2>
-            <p className="detail-text">{request.stepsToReproduce}</p>
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h2 className="text-lg font-semibold mb-3 text-slate-800">Steps to Reproduce</h2>
+            <p className="whitespace-pre-wrap leading-7 text-slate-800">{request.stepsToReproduce}</p>
           </div>
         )}
 
         {request.expectedBehavior && (
-          <div className="detail-section">
-            <h2>Expected Behavior</h2>
-            <p className="detail-text">{request.expectedBehavior}</p>
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h2 className="text-lg font-semibold mb-3 text-slate-800">Expected Behavior</h2>
+            <p className="whitespace-pre-wrap leading-7 text-slate-800">{request.expectedBehavior}</p>
           </div>
         )}
 
         {request.actualBehavior && (
-          <div className="detail-section">
-            <h2>Actual Behavior</h2>
-            <p className="detail-text">{request.actualBehavior}</p>
+          <div className="mt-6 pt-6 border-t border-slate-200">
+            <h2 className="text-lg font-semibold mb-3 text-slate-800">Actual Behavior</h2>
+            <p className="whitespace-pre-wrap leading-7 text-slate-800">{request.actualBehavior}</p>
           </div>
         )}
 
-        <div className="detail-section">
-          <h2>Update Status</h2>
-          <div className="status-buttons">
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <h2 className="text-lg font-semibold mb-3 text-slate-800">Update Status</h2>
+          <div className="flex gap-2 flex-wrap">
             {statusOptions.map((s) => (
               <button
                 key={s}
-                className={`btn btn-sm ${request.status === s ? "btn-active" : "btn-outline"}`}
+                className={`inline-flex items-center justify-center px-3 py-1 text-xs font-medium rounded-lg cursor-pointer transition-all duration-150 ${
+                  request.status === s
+                    ? "text-white border-none"
+                    : "bg-transparent border border-slate-200 text-muted hover:border-primary hover:text-primary"
+                }`}
                 style={
                   request.status === s
-                    ? { backgroundColor: statusColors[s], color: "#fff" }
+                    ? { backgroundColor: statusColors[s] }
                     : {}
                 }
                 onClick={() => handleStatusChange(s)}
@@ -211,17 +221,17 @@ export default function RequestDetail() {
           </div>
         </div>
 
-        <div className="detail-section">
-          <h2>Comments ({request.comments.length})</h2>
+        <div className="mt-6 pt-6 border-t border-slate-200">
+          <h2 className="text-lg font-semibold mb-3 text-slate-800">Comments ({request.comments.length})</h2>
           {request.comments.length === 0 ? (
-            <p className="muted">No comments yet.</p>
+            <p className="text-muted text-sm">No comments yet.</p>
           ) : (
-            <div className="comments-list">
+            <div className="flex flex-col gap-3">
               {request.comments.map((c) => (
-                <div key={c.id} className="comment">
-                  <div className="comment-header">
+                <div key={c.id} className="p-3 bg-slate-50 rounded-lg">
+                  <div className="flex justify-between mb-1 text-sm">
                     <strong>{c.author}</strong>
-                    <span className="muted">
+                    <span className="text-muted text-sm">
                       {new Date(c.createdAt).toLocaleString()}
                     </span>
                   </div>
@@ -231,15 +241,16 @@ export default function RequestDetail() {
             </div>
           )}
 
-          <div className="add-comment">
+          <div className="mt-4 flex flex-col gap-2">
             <textarea
               rows={3}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
               placeholder="Add a comment..."
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] resize-y focus:outline-none focus:border-primary"
             />
             <button
-              className="btn btn-primary"
+              className="self-end inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover cursor-pointer transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed"
               onClick={handleAddComment}
               disabled={commentLoading || !newComment.trim()}
             >

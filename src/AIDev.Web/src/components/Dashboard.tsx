@@ -22,113 +22,116 @@ export default function DashboardView() {
     }
   }
 
-  if (loading) return <div className="loading">Loading dashboard...</div>;
-  if (error) return <div className="error-banner">{error}</div>;
+  if (loading) return <div className="text-center py-12 text-muted">Loading dashboard...</div>;
+  if (error) return <div className="bg-red-50 text-red-800 px-4 py-3 rounded-lg border border-red-200">{error}</div>;
   if (!dashboard) return null;
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <Link to="/new" className="btn btn-primary">
+    <div className="animate-[fadeIn_0.2s_ease-in]">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-slate-800">Dashboard</h1>
+        <Link
+          to="/new"
+          className="inline-flex items-center justify-center px-5 py-2 text-sm font-medium rounded-lg bg-primary text-white hover:bg-primary-hover no-underline transition-all duration-150"
+        >
           + New Request
         </Link>
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-number">{dashboard.totalRequests}</div>
-          <div className="stat-label">Total Requests</div>
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(150px,1fr))] gap-4 mb-6">
+        <div className="bg-white rounded-lg shadow-sm p-5 text-center">
+          <div className="text-4xl font-bold text-primary">{dashboard.totalRequests}</div>
+          <div className="text-sm text-muted font-medium mt-1">Total Requests</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{dashboard.byStatus["New"] || 0}</div>
-          <div className="stat-label">New</div>
+        <div className="bg-white rounded-lg shadow-sm p-5 text-center">
+          <div className="text-4xl font-bold text-primary">{dashboard.byStatus["New"] || 0}</div>
+          <div className="text-sm text-muted font-medium mt-1">New</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">
+        <div className="bg-white rounded-lg shadow-sm p-5 text-center">
+          <div className="text-4xl font-bold text-primary">
             {dashboard.byStatus["InProgress"] || 0}
           </div>
-          <div className="stat-label">In Progress</div>
+          <div className="text-sm text-muted font-medium mt-1">In Progress</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-number">{dashboard.byStatus["Done"] || 0}</div>
-          <div className="stat-label">Done</div>
+        <div className="bg-white rounded-lg shadow-sm p-5 text-center">
+          <div className="text-4xl font-bold text-primary">{dashboard.byStatus["Done"] || 0}</div>
+          <div className="text-sm text-muted font-medium mt-1">Done</div>
         </div>
       </div>
 
-      <div className="dashboard-grid">
-        <div className="dashboard-card">
-          <h2>By Status</h2>
-          <div className="breakdown-list">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(250px,1fr))] gap-4">
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <h2 className="text-base font-semibold mb-3 text-slate-800">By Status</h2>
+          <div className="flex flex-col gap-1">
             {Object.entries(dashboard.byStatus)
               .filter(([, count]) => count > 0)
               .map(([status, count]) => (
-                <div key={status} className="breakdown-item">
+                <div key={status} className="flex justify-between py-1 text-sm">
                   <span>{status}</span>
-                  <span className="breakdown-count">{count}</span>
+                  <span className="font-semibold text-primary">{count}</span>
                 </div>
               ))}
           </div>
         </div>
 
-        <div className="dashboard-card">
-          <h2>By Type</h2>
-          <div className="breakdown-list">
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <h2 className="text-base font-semibold mb-3 text-slate-800">By Type</h2>
+          <div className="flex flex-col gap-1">
             {Object.entries(dashboard.byType)
               .filter(([, count]) => count > 0)
               .map(([type, count]) => (
-                <div key={type} className="breakdown-item">
+                <div key={type} className="flex justify-between py-1 text-sm">
                   <span>{type}</span>
-                  <span className="breakdown-count">{count}</span>
+                  <span className="font-semibold text-primary">{count}</span>
                 </div>
               ))}
           </div>
         </div>
 
-        <div className="dashboard-card">
-          <h2>By Priority</h2>
-          <div className="breakdown-list">
+        <div className="bg-white rounded-lg shadow-sm p-5">
+          <h2 className="text-base font-semibold mb-3 text-slate-800">By Priority</h2>
+          <div className="flex flex-col gap-1">
             {Object.entries(dashboard.byPriority)
               .filter(([, count]) => count > 0)
               .map(([priority, count]) => (
-                <div key={priority} className="breakdown-item">
+                <div key={priority} className="flex justify-between py-1 text-sm">
                   <span>{priority}</span>
-                  <span className="breakdown-count">{count}</span>
+                  <span className="font-semibold text-primary">{count}</span>
                 </div>
               ))}
           </div>
         </div>
       </div>
 
-      <div className="dashboard-card" style={{ marginTop: "1.5rem" }}>
-        <h2>Recent Requests</h2>
+      <div className="bg-white rounded-lg shadow-sm p-5 mt-6">
+        <h2 className="text-base font-semibold mb-3 text-slate-800">Recent Requests</h2>
         {dashboard.recentRequests.length === 0 ? (
-          <p className="muted">No requests yet.</p>
+          <p className="text-muted text-sm">No requests yet.</p>
         ) : (
-          <table>
+          <table className="w-full border-collapse">
             <thead>
               <tr>
-                <th>#</th>
-                <th>Title</th>
-                <th>Status</th>
-                <th>Priority</th>
-                <th>Created</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted border-b-2 border-slate-200">#</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted border-b-2 border-slate-200">Title</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted border-b-2 border-slate-200">Status</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted border-b-2 border-slate-200">Priority</th>
+                <th className="text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted border-b-2 border-slate-200">Created</th>
               </tr>
             </thead>
             <tbody>
               {dashboard.recentRequests.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.id}</td>
-                  <td>
-                    <Link to={`/requests/${r.id}`}>{r.title}</Link>
+                <tr key={r.id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3 border-b border-slate-200 text-sm">{r.id}</td>
+                  <td className="px-4 py-3 border-b border-slate-200 text-sm">
+                    <Link to={`/requests/${r.id}`} className="text-primary no-underline hover:underline">{r.title}</Link>
                   </td>
-                  <td>
-                    <span className="badge">{r.status}</span>
+                  <td className="px-4 py-3 border-b border-slate-200 text-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">{r.status}</span>
                   </td>
-                  <td>
-                    <span className="badge">{r.priority}</span>
+                  <td className="px-4 py-3 border-b border-slate-200 text-sm">
+                    <span className="inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold whitespace-nowrap">{r.priority}</span>
                   </td>
-                  <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 border-b border-slate-200 text-sm">{new Date(r.createdAt).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
