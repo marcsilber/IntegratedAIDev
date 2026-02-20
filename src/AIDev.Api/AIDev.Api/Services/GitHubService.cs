@@ -5,15 +5,14 @@ namespace AIDev.Api.Services;
 
 public interface IGitHubService
 {
-    Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request);
-    Task UpdateIssueAsync(DevRequest request);
+    Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request, string owner, string repo);
+    Task UpdateIssueAsync(DevRequest request, string owner, string repo);
+    Task<List<Octokit.Repository>> GetRepositoriesAsync();
 }
 
 public class GitHubService : IGitHubService
 {
     private readonly GitHubClient _client;
-    private readonly string _owner;
-    private readonly string _repo;
     private readonly ILogger<GitHubService> _logger;
 
     public GitHubService(IConfiguration configuration, ILogger<GitHubService> logger)
@@ -22,10 +21,6 @@ public class GitHubService : IGitHubService
 
         var token = configuration["GitHub:PersonalAccessToken"]
             ?? throw new InvalidOperationException("GitHub:PersonalAccessToken is not configured.");
-        _owner = configuration["GitHub:Owner"]
-            ?? throw new InvalidOperationException("GitHub:Owner is not configured.");
-        _repo = configuration["GitHub:Repo"]
-            ?? throw new InvalidOperationException("GitHub:Repo is not configured.");
 
         _client = new GitHubClient(new ProductHeaderValue("AIDev-Pipeline"))
         {
@@ -33,7 +28,25 @@ public class GitHubService : IGitHubService
         };
     }
 
-    public async Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request)
+    public async Task<List<Octokit.Repository>> GetRepositoriesAsync()
+    {
+        try
+        {
+            var repos = await _client.Repository.GetAllForCurrent(new RepositoryRequest
+            {
+                Sort = RepositorySort.Updated,
+                Direction = SortDirection.Descending
+            });
+            return repos.ToList();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch GitHub repositories");
+            throw;
+        }
+    }
+
+    public async Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request, string owner, string repo)
     {
         var body = FormatIssueBody(request);
         var newIssue = new NewIssue(request.Title)
@@ -47,7 +60,7 @@ public class GitHubService : IGitHubService
 
         try
         {
-            var issue = await _client.Issue.Create(_owner, _repo, newIssue);
+            var issue = await _client.Issue.Create(owner, repo, newIssue);
             _logger.LogInformation("Created GitHub Issue #{IssueNumber} for request {RequestId}", issue.Number, request.Id);
             return (issue.Number, issue.HtmlUrl);
         }
@@ -58,7 +71,7 @@ public class GitHubService : IGitHubService
         }
     }
 
-    public async Task UpdateIssueAsync(DevRequest request)
+    public async Task UpdateIssueAsync(DevRequest request, string owner, string repo)
     {
         if (request.GitHubIssueNumber == null) return;
 
@@ -76,7 +89,7 @@ public class GitHubService : IGitHubService
 
         try
         {
-            await _client.Issue.Update(_owner, _repo, request.GitHubIssueNumber.Value, issueUpdate);
+            await _client.Issue.Update(owner, repo, request.GitHubIssueNumber.Value, issueUpdate);
             _logger.LogInformation("Updated GitHub Issue #{IssueNumber} for request {RequestId}",
                 request.GitHubIssueNumber, request.Id);
         }
@@ -153,15 +166,21 @@ public class NullGitHubService : IGitHubService
         _logger = logger;
     }
 
-    public Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request)
+    public Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request, string owner, string repo)
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping Issue creation for request {RequestId}.", request.Id);
         return Task.FromResult((0, string.Empty));
     }
 
-    public Task UpdateIssueAsync(DevRequest request)
+    public Task UpdateIssueAsync(DevRequest request, string owner, string repo)
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping Issue update for request {RequestId}.", request.Id);
         return Task.CompletedTask;
+    }
+
+    public Task<List<Octokit.Repository>> GetRepositoriesAsync()
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning empty repo list.");
+        return Task.FromResult(new List<Octokit.Repository>());
     }
 }

@@ -131,6 +131,7 @@ export default function RequestList() {
               <tr>
                 <th>#</th>
                 <th>Title</th>
+                <th>Project</th>
                 <th>Type</th>
                 <th>Priority</th>
                 <th>Status</th>
@@ -147,6 +148,9 @@ export default function RequestList() {
                     <Link to={`/requests/${r.id}`} className="request-link">
                       {r.title}
                     </Link>
+                  </td>
+                  <td>
+                    <span className="badge badge-project">{r.projectName}</span>
                   </td>
                   <td>
                     <span className="badge badge-type">{r.requestType}</span>

@@ -5,6 +5,9 @@ namespace AIDev.Api.Models.DTOs;
 public class CreateRequestDto
 {
     [Required]
+    public int ProjectId { get; set; }
+
+    [Required]
     [MaxLength(200)]
     public string Title { get; set; } = string.Empty;
 
@@ -55,11 +58,25 @@ public class RequestResponseDto
     public RequestStatus Status { get; set; }
     public string SubmittedBy { get; set; } = string.Empty;
     public string SubmittedByEmail { get; set; } = string.Empty;
+    public int ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
     public int? GitHubIssueNumber { get; set; }
     public string? GitHubIssueUrl { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
     public List<CommentResponseDto> Comments { get; set; } = new();
+    public List<AttachmentResponseDto> Attachments { get; set; } = new();
+}
+
+public class AttachmentResponseDto
+{
+    public int Id { get; set; }
+    public string FileName { get; set; } = string.Empty;
+    public string ContentType { get; set; } = string.Empty;
+    public long FileSizeBytes { get; set; }
+    public string UploadedBy { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public string DownloadUrl { get; set; } = string.Empty;
 }
 
 public class CommentResponseDto
@@ -83,4 +100,30 @@ public class DashboardDto
     public Dictionary<string, int> ByType { get; set; } = new();
     public Dictionary<string, int> ByPriority { get; set; } = new();
     public List<RequestResponseDto> RecentRequests { get; set; } = new();
+}
+
+// ── Project DTOs ──────────────────────────────────────────────────────────
+
+public class ProjectResponseDto
+{
+    public int Id { get; set; }
+    public string GitHubOwner { get; set; } = string.Empty;
+    public string GitHubRepo { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public string FullName { get; set; } = string.Empty;
+    public bool IsActive { get; set; }
+    public DateTime LastSyncedAt { get; set; }
+    public int RequestCount { get; set; }
+}
+
+public class UpdateProjectDto
+{
+    [MaxLength(200)]
+    public string? DisplayName { get; set; }
+
+    [MaxLength(500)]
+    public string? Description { get; set; }
+
+    public bool? IsActive { get; set; }
 }

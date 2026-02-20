@@ -59,11 +59,42 @@ export interface DevRequest {
   status: RequestStatus;
   submittedBy: string;
   submittedByEmail: string;
+  projectId: number;
+  projectName: string;
   gitHubIssueNumber?: number;
   gitHubIssueUrl?: string;
   createdAt: string;
   updatedAt: string;
   comments: Comment[];
+  attachments: Attachment[];
+}
+
+export interface Attachment {
+  id: number;
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  uploadedBy: string;
+  createdAt: string;
+  downloadUrl: string;
+}
+
+export interface Project {
+  id: number;
+  gitHubOwner: string;
+  gitHubRepo: string;
+  displayName: string;
+  description?: string;
+  fullName: string;
+  isActive: boolean;
+  lastSyncedAt: string;
+  requestCount: number;
+}
+
+export interface UpdateProject {
+  displayName?: string;
+  description?: string;
+  isActive?: boolean;
 }
 
 export interface Comment {
@@ -74,6 +105,7 @@ export interface Comment {
 }
 
 export interface CreateRequest {
+  projectId: number;
   title: string;
   description: string;
   requestType: RequestType;
@@ -151,6 +183,84 @@ export async function addComment(
 export async function getDashboard(): Promise<Dashboard> {
   const { data } = await api.get("/dashboard");
   return data;
+}
+
+// ── Project / Admin Functions ─────────────────────────────────────────────
+
+export async function getProjects(): Promise<Project[]> {
+  const { data } = await api.get("/projects");
+  return data;
+}
+
+export async function getAdminProjects(): Promise<Project[]> {
+  const { data } = await api.get("/admin/projects");
+  return data;
+}
+
+export async function syncProjects(): Promise<Project[]> {
+  const { data } = await api.post("/admin/projects/sync");
+  return data;
+}
+
+export async function updateProject(
+  id: number,
+  update: UpdateProject
+): Promise<Project> {
+  const { data } = await api.put(`/admin/projects/${id}`, update);
+  return data;
+}
+
+// ── Attachment Functions ──────────────────────────────────────────────────
+
+export async function uploadAttachments(
+  requestId: number,
+  files: File[]
+): Promise<Attachment[]> {
+  const formData = new FormData();
+  files.forEach((f) => formData.append("files", f));
+  const { data } = await api.post(
+    `/requests/${requestId}/attachments`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" } }
+  );
+  return data;
+}
+
+export function getAttachmentUrl(requestId: number, attachmentId: number): string {
+  return `${API_BASE_URL}/api/requests/${requestId}/attachments/${attachmentId}`;
+}
+
+export async function fetchAttachmentBlob(
+  requestId: number,
+  attachmentId: number
+): Promise<string> {
+  const response = await api.get(
+    `/requests/${requestId}/attachments/${attachmentId}`,
+    { responseType: "blob" }
+  );
+  return URL.createObjectURL(response.data);
+}
+
+export async function downloadAttachment(
+  requestId: number,
+  attachmentId: number,
+  fileName: string
+): Promise<void> {
+  const blobUrl = await fetchAttachmentBlob(requestId, attachmentId);
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(blobUrl);
+}
+
+export async function deleteAttachment(
+  requestId: number,
+  attachmentId: number
+): Promise<void> {
+  await api.delete(`/requests/${requestId}/attachments/${attachmentId}`);
 }
 
 export default api;

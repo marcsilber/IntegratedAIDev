@@ -23,6 +23,9 @@ public class DevRequest
 
     public string? ActualBehavior { get; set; }
 
+    public int ProjectId { get; set; }
+    public Project? Project { get; set; }
+
     public RequestStatus Status { get; set; } = RequestStatus.New;
 
     [Required]
@@ -43,4 +46,6 @@ public class DevRequest
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public List<RequestComment> Comments { get; set; } = new();
+
+    public List<Attachment> Attachments { get; set; } = new();
 }

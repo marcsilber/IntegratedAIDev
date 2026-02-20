@@ -1,10 +1,12 @@
-import { useState, type FormEvent } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   createRequest,
+  getProjects,
   type CreateRequest,
   type RequestType,
   type Priority,
+  type Project,
 } from "../services/api";
 
 const requestTypes: RequestType[] = [
@@ -19,8 +21,11 @@ export default function RequestForm() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
 
   const [form, setForm] = useState<CreateRequest>({
+    projectId: 0,
     title: "",
     description: "",
     requestType: "Bug",
@@ -29,6 +34,18 @@ export default function RequestForm() {
     expectedBehavior: "",
     actualBehavior: "",
   });
+
+  useEffect(() => {
+    getProjects()
+      .then((data) => {
+        setProjects(data);
+        if (data.length === 1) {
+          setForm((f) => ({ ...f, projectId: data[0].id }));
+        }
+      })
+      .catch(() => setError("Failed to load projects"))
+      .finally(() => setProjectsLoading(false));
+  }, []);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,6 +71,35 @@ export default function RequestForm() {
       {error && <div className="error-banner">{error}</div>}
 
       <form onSubmit={handleSubmit} className="request-form">
+        <div className="form-group">
+          <label htmlFor="project">Project *</label>
+          {projectsLoading ? (
+            <p>Loading projects...</p>
+          ) : projects.length === 0 ? (
+            <p className="error-banner">
+              No active projects. An admin must sync and enable projects first.
+            </p>
+          ) : (
+            <select
+              id="project"
+              required
+              value={form.projectId}
+              onChange={(e) =>
+                setForm({ ...form, projectId: Number(e.target.value) })
+              }
+            >
+              <option value={0} disabled>
+                Select a project...
+              </option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.displayName} ({p.fullName})
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+
         <div className="form-group">
           <label htmlFor="title">Title *</label>
           <input

@@ -10,6 +10,7 @@ import RequestList from "./components/RequestList";
 import RequestForm from "./components/RequestForm";
 import RequestDetail from "./components/RequestDetail";
 import DashboardView from "./components/Dashboard";
+import AdminSettings from "./components/AdminSettings";
 import "./App.css";
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
                   Requests
                 </NavLink>
                 <NavLink to="/dashboard">Dashboard</NavLink>
+                <NavLink to="/admin">Admin</NavLink>
                 <NavLink to="/new" className="nav-new-btn">
                   + New
                 </NavLink>
@@ -68,6 +70,7 @@ function App() {
               <Route path="/new" element={<RequestForm />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
               <Route path="/dashboard" element={<DashboardView />} />
+              <Route path="/admin" element={<AdminSettings />} />
             </Routes>
           </AuthenticatedTemplate>
 

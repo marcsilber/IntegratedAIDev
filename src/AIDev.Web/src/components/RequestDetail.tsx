@@ -1,13 +1,44 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import {
   getRequest,
   updateRequest,
   addComment,
   deleteRequest,
+  uploadAttachments,
+  fetchAttachmentBlob,
+  downloadAttachment,
+  deleteAttachment,
   type DevRequest,
   type RequestStatus,
+  type Attachment,
 } from "../services/api";
+
+/** Renders an image by fetching through the authenticated API client. */
+function AuthImage({ requestId, attachment }: { requestId: number; attachment: Attachment }) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let revoke: string | null = null;
+    fetchAttachmentBlob(requestId, attachment.id).then((url) => {
+      revoke = url;
+      setBlobUrl(url);
+    }).catch(() => {});
+    return () => { if (revoke) URL.revokeObjectURL(revoke); };
+  }, [requestId, attachment.id]);
+
+  if (!blobUrl) return <div className="attachment-thumb-placeholder">Loading...</div>;
+
+  return (
+    <img
+      src={blobUrl}
+      alt={attachment.fileName}
+      className="attachment-thumb"
+      onClick={() => downloadAttachment(requestId, attachment.id, attachment.fileName)}
+      style={{ cursor: "pointer" }}
+    />
+  );
+}
 
 const statusOptions: RequestStatus[] = [
   "New",
@@ -42,6 +73,9 @@ export default function RequestDetail() {
   const [error, setError] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [commentLoading, setCommentLoading] = useState(false);
+  const [uploadLoading, setUploadLoading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (id) loadRequest(parseInt(id));
@@ -96,11 +130,64 @@ export default function RequestDetail() {
     }
   }
 
+  const handleUploadFiles = useCallback(async (files: File[]) => {
+    if (!request || files.length === 0) return;
+    setUploadLoading(true);
+    setError(null);
+    try {
+      const newAttachments = await uploadAttachments(request.id, files);
+      setRequest({
+        ...request,
+        attachments: [...(request.attachments || []), ...newAttachments],
+      });
+    } catch {
+      setError("Failed to upload attachment(s)");
+    } finally {
+      setUploadLoading(false);
+    }
+  }, [request]);
+
+  async function handleDeleteAttachment(attachmentId: number) {
+    if (!request || !window.confirm("Delete this attachment?")) return;
+    try {
+      await deleteAttachment(request.id, attachmentId);
+      setRequest({
+        ...request,
+        attachments: request.attachments.filter((a) => a.id !== attachmentId),
+      });
+    } catch {
+      setError("Failed to delete attachment");
+    }
+  }
+
+  function handlePaste(e: React.ClipboardEvent) {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const files: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) files.push(file);
+      }
+    }
+    if (files.length > 0) {
+      e.preventDefault();
+      handleUploadFiles(files);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragActive(false);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) handleUploadFiles(files);
+  }
+
   if (loading) return <div className="loading">Loading...</div>;
   if (!request) return <div className="error-banner">Request not found</div>;
 
   return (
-    <div className="page">
+    <div className="page" onPaste={handlePaste}>
       <div className="page-header">
         <Link to="/" className="btn btn-secondary">
           ← Back to List
@@ -151,6 +238,10 @@ export default function RequestDetail() {
         </div>
 
         <div className="detail-info">
+          <p>
+            <strong>Project:</strong>{" "}
+            <span className="badge badge-project">{request.projectName}</span>
+          </p>
           <p>
             <strong>Submitted by:</strong> {request.submittedBy} (
             {request.submittedByEmail})
@@ -245,6 +336,70 @@ export default function RequestDetail() {
             >
               {commentLoading ? "Adding..." : "Add Comment"}
             </button>
+          </div>
+        </div>
+
+        <div className="detail-section">
+          <h2>Attachments ({request.attachments?.length || 0})</h2>
+
+          {request.attachments && request.attachments.length > 0 && (
+            <div className="attachments-grid">
+              {request.attachments.map((a) => (
+                <div key={a.id} className="attachment-card">
+                  {a.contentType.startsWith("image/") ? (
+                    <AuthImage requestId={request.id} attachment={a} />
+                  ) : (
+                    <button
+                      className="attachment-file-link"
+                      onClick={() => downloadAttachment(request.id, a.id, a.fileName)}
+                    >
+                      📎 {a.fileName}
+                    </button>
+                  )}
+                  <div className="attachment-info">
+                    <span className="muted">
+                      {a.fileName} ({(a.fileSizeBytes / 1024).toFixed(0)} KB)
+                    </span>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => handleDeleteAttachment(a.id)}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div
+            className={`drop-zone ${dragActive ? "drop-zone-active" : ""}`}
+            onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.pdf,.txt,.doc,.docx"
+              style={{ display: "none" }}
+              onChange={(e) => {
+                const files = Array.from(e.target.files || []);
+                handleUploadFiles(files);
+                e.target.value = "";
+              }}
+            />
+            {uploadLoading ? (
+              <p>Uploading...</p>
+            ) : (
+              <p>
+                📋 Paste an image, drag & drop files, or <strong>click to browse</strong>
+                <br />
+                <span className="muted">Max 5 MB per file · Images, PDF, text files</span>
+              </p>
+            )}
           </div>
         </div>
       </div>

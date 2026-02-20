@@ -3,6 +3,7 @@ using System;
 using AIDev.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,54 +11,14 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AIDev.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260220142018_AddProjects")]
+    partial class AddProjects
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
-
-            modelBuilder.Entity("AIDev.Api.Models.Attachment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<int>("DevRequestId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("TEXT");
-
-                    b.Property<long>("FileSizeBytes")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("StoredPath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UploadedBy")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DevRequestId");
-
-                    b.ToTable("Attachments");
-                });
 
             modelBuilder.Entity("AIDev.Api.Models.DevRequest", b =>
                 {
@@ -203,17 +164,6 @@ namespace AIDev.Api.Migrations
                     b.ToTable("RequestComments");
                 });
 
-            modelBuilder.Entity("AIDev.Api.Models.Attachment", b =>
-                {
-                    b.HasOne("AIDev.Api.Models.DevRequest", "DevRequest")
-                        .WithMany("Attachments")
-                        .HasForeignKey("DevRequestId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("DevRequest");
-                });
-
             modelBuilder.Entity("AIDev.Api.Models.DevRequest", b =>
                 {
                     b.HasOne("AIDev.Api.Models.Project", "Project")
@@ -238,8 +188,6 @@ namespace AIDev.Api.Migrations
 
             modelBuilder.Entity("AIDev.Api.Models.DevRequest", b =>
                 {
-                    b.Navigation("Attachments");
-
                     b.Navigation("Comments");
                 });
 

@@ -12,9 +12,18 @@ obj/
 node_modules/
 dist/
 
+# Uploads (stored on server filesystem)
+uploads/
+
 # Environment files with secrets
 .env.local
 .env.production
+
+# Temp files
+webapp-logs/
+webapp-logs.zip
+publish-profile-temp.xml
+*.csx
 
 # IDE
 .idea/

@@ -36,6 +36,8 @@ public class RequestsController : ControllerBase
     {
         var query = _db.DevRequests
             .Include(r => r.Comments)
+            .Include(r => r.Project)
+            .Include(r => r.Attachments)
             .AsQueryable();
 
         if (status.HasValue)
@@ -66,6 +68,8 @@ public class RequestsController : ControllerBase
     {
         var request = await _db.DevRequests
             .Include(r => r.Comments)
+            .Include(r => r.Project)
+            .Include(r => r.Attachments)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (request == null)
@@ -83,8 +87,17 @@ public class RequestsController : ControllerBase
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
 
+        var project = await _db.Projects.FindAsync(dto.ProjectId);
+        if (project == null || !project.IsActive)
+            return BadRequest("Invalid or inactive project.");
+
         var userName = User.FindFirst("name")?.Value ?? User.Identity?.Name ?? "Unknown";
-        var userEmail = User.FindFirst("preferred_username")?.Value ?? "unknown@example.com";
+        var userEmail = User.FindFirst("preferred_username")?.Value
+            ?? User.FindFirst("upn")?.Value
+            ?? User.FindFirst("email")?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.Upn)?.Value
+            ?? "unknown@example.com";
 
         var request = new DevRequest
         {
@@ -95,6 +108,7 @@ public class RequestsController : ControllerBase
             StepsToReproduce = dto.StepsToReproduce,
             ExpectedBehavior = dto.ExpectedBehavior,
             ActualBehavior = dto.ActualBehavior,
+            ProjectId = dto.ProjectId,
             SubmittedBy = userName,
             SubmittedByEmail = userEmail,
             CreatedAt = DateTime.UtcNow,
@@ -107,7 +121,7 @@ public class RequestsController : ControllerBase
         // Sync to GitHub Issues (non-blocking failure — request still saved)
         try
         {
-            var (issueNumber, issueUrl) = await _gitHub.CreateIssueAsync(request);
+            var (issueNumber, issueUrl) = await _gitHub.CreateIssueAsync(request, project.GitHubOwner, project.GitHubRepo);
             if (issueNumber > 0)
             {
                 request.GitHubIssueNumber = issueNumber;
@@ -131,6 +145,8 @@ public class RequestsController : ControllerBase
     {
         var request = await _db.DevRequests
             .Include(r => r.Comments)
+            .Include(r => r.Project)
+            .Include(r => r.Attachments)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (request == null)
@@ -151,7 +167,8 @@ public class RequestsController : ControllerBase
         // Sync update to GitHub
         try
         {
-            await _gitHub.UpdateIssueAsync(request);
+            if (request.Project != null)
+                await _gitHub.UpdateIssueAsync(request, request.Project.GitHubOwner, request.Project.GitHubRepo);
         }
         catch (Exception ex)
         {
@@ -209,6 +226,110 @@ public class RequestsController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Upload one or more attachments (images/files) to a request.
+    /// </summary>
+    [HttpPost("{id}/attachments")]
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB per request
+    public async Task<ActionResult<List<AttachmentResponseDto>>> UploadAttachments(int id, [FromForm] List<IFormFile> files)
+    {
+        var request = await _db.DevRequests.FindAsync(id);
+        if (request == null)
+            return NotFound();
+
+        if (files == null || files.Count == 0)
+            return BadRequest("No files provided.");
+
+        var uploadsRoot = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+        Directory.CreateDirectory(uploadsRoot);
+
+        var userName = User.FindFirst("name")?.Value ?? User.Identity?.Name ?? "Unknown";
+        var results = new List<AttachmentResponseDto>();
+
+        foreach (var file in files)
+        {
+            if (file.Length == 0) continue;
+            if (file.Length > 5 * 1024 * 1024) // 5 MB per file
+                return BadRequest($"File '{file.FileName}' exceeds the 5 MB limit.");
+
+            var storedName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+            var storedPath = Path.Combine("uploads", storedName);
+            var fullPath = Path.Combine(uploadsRoot, storedName);
+
+            await using var stream = new FileStream(fullPath, FileMode.Create);
+            await file.CopyToAsync(stream);
+
+            var attachment = new Attachment
+            {
+                DevRequestId = id,
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                FileSizeBytes = file.Length,
+                StoredPath = storedPath,
+                UploadedBy = userName,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Attachments.Add(attachment);
+            await _db.SaveChangesAsync();
+
+            results.Add(new AttachmentResponseDto
+            {
+                Id = attachment.Id,
+                FileName = attachment.FileName,
+                ContentType = attachment.ContentType,
+                FileSizeBytes = attachment.FileSizeBytes,
+                UploadedBy = attachment.UploadedBy,
+                CreatedAt = attachment.CreatedAt,
+                DownloadUrl = $"/api/requests/{id}/attachments/{attachment.Id}"
+            });
+        }
+
+        return Ok(results);
+    }
+
+    /// <summary>
+    /// Download an attachment.
+    /// </summary>
+    [HttpGet("{requestId}/attachments/{attachmentId}")]
+    public async Task<ActionResult> DownloadAttachment(int requestId, int attachmentId)
+    {
+        var attachment = await _db.Attachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.DevRequestId == requestId);
+
+        if (attachment == null)
+            return NotFound();
+
+        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), attachment.StoredPath);
+        if (!System.IO.File.Exists(fullPath))
+            return NotFound("File not found on disk.");
+
+        var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read);
+        return File(stream, attachment.ContentType, attachment.FileName);
+    }
+
+    /// <summary>
+    /// Delete an attachment.
+    /// </summary>
+    [HttpDelete("{requestId}/attachments/{attachmentId}")]
+    public async Task<ActionResult> DeleteAttachment(int requestId, int attachmentId)
+    {
+        var attachment = await _db.Attachments
+            .FirstOrDefaultAsync(a => a.Id == attachmentId && a.DevRequestId == requestId);
+
+        if (attachment == null)
+            return NotFound();
+
+        var fullPath = Path.Combine(Directory.GetCurrentDirectory(), attachment.StoredPath);
+        if (System.IO.File.Exists(fullPath))
+            System.IO.File.Delete(fullPath);
+
+        _db.Attachments.Remove(attachment);
+        await _db.SaveChangesAsync();
+
+        return NoContent();
+    }
+
     private static RequestResponseDto MapToDto(DevRequest r) => new()
     {
         Id = r.Id,
@@ -222,6 +343,8 @@ public class RequestsController : ControllerBase
         Status = r.Status,
         SubmittedBy = r.SubmittedBy,
         SubmittedByEmail = r.SubmittedByEmail,
+        ProjectId = r.ProjectId,
+        ProjectName = r.Project?.DisplayName ?? "Unknown",
         GitHubIssueNumber = r.GitHubIssueNumber,
         GitHubIssueUrl = r.GitHubIssueUrl,
         CreatedAt = r.CreatedAt,
@@ -232,6 +355,16 @@ public class RequestsController : ControllerBase
             Author = c.Author,
             Content = c.Content,
             CreatedAt = c.CreatedAt
+        }).ToList(),
+        Attachments = r.Attachments.Select(a => new AttachmentResponseDto
+        {
+            Id = a.Id,
+            FileName = a.FileName,
+            ContentType = a.ContentType,
+            FileSizeBytes = a.FileSizeBytes,
+            UploadedBy = a.UploadedBy,
+            CreatedAt = a.CreatedAt,
+            DownloadUrl = $"/api/requests/{r.Id}/attachments/{a.Id}"
         }).ToList()
     };
 }
