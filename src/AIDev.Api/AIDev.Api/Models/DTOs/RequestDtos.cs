@@ -179,4 +179,28 @@ public class AgentConfigDto
     public int MaxReviewsPerRequest { get; set; }
     public float Temperature { get; set; }
     public string ModelName { get; set; } = string.Empty;
+    public int DailyTokenBudget { get; set; }
+    public int MonthlyTokenBudget { get; set; }
+}
+
+public class AgentConfigUpdateDto
+{
+    public bool? Enabled { get; set; }
+    public int? PollingIntervalSeconds { get; set; }
+    public int? MaxReviewsPerRequest { get; set; }
+    public float? Temperature { get; set; }
+    public int? DailyTokenBudget { get; set; }
+    public int? MonthlyTokenBudget { get; set; }
+}
+
+public class TokenBudgetDto
+{
+    public int DailyTokensUsed { get; set; }
+    public int DailyTokenBudget { get; set; }
+    public bool DailyBudgetExceeded { get; set; }
+    public int MonthlyTokensUsed { get; set; }
+    public int MonthlyTokenBudget { get; set; }
+    public bool MonthlyBudgetExceeded { get; set; }
+    public int DailyReviewCount { get; set; }
+    public int MonthlyReviewCount { get; set; }
 }

@@ -10,6 +10,7 @@ import {
   downloadAttachment,
   deleteAttachment,
   overrideAgentReview,
+  triggerReReview,
   type DevRequest,
   type RequestStatus,
   type Attachment,
@@ -389,6 +390,19 @@ export default function RequestDetail() {
                   }}
                 >
                   Override → Reject
+                </button>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={async () => {
+                    if (!window.confirm("Queue this request for a fresh agent re-review?")) return;
+                    try {
+                      await triggerReReview(request.id);
+                      loadRequest(request.id);
+                    } catch { setError("Failed to trigger re-review"); }
+                  }}
+                  title="Reset this request to New status so the agent reviews it again"
+                >
+                  Re-review
                 </button>
               </div>
 

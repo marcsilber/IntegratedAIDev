@@ -12,6 +12,7 @@ public class ProductOwnerAgentService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILlmService _llmService;
+    private readonly IGitHubService _gitHubService;
     private readonly ILogger<ProductOwnerAgentService> _logger;
     private readonly IConfiguration _configuration;
 
@@ -22,11 +23,13 @@ public class ProductOwnerAgentService : BackgroundService
     public ProductOwnerAgentService(
         IServiceScopeFactory scopeFactory,
         ILlmService llmService,
+        IGitHubService gitHubService,
         ILogger<ProductOwnerAgentService> logger,
         IConfiguration configuration)
     {
         _scopeFactory = scopeFactory;
         _llmService = llmService;
+        _gitHubService = gitHubService;
         _logger = logger;
         _configuration = configuration;
     }
@@ -63,6 +66,13 @@ public class ProductOwnerAgentService : BackgroundService
     {
         using var scope = _scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        // Check token budget before processing
+        if (await IsBudgetExceededAsync(db))
+        {
+            _logger.LogWarning("Token budget exceeded — skipping agent review cycle");
+            return;
+        }
 
         // Find requests needing review:
         // 1. Status = New and AgentReviewCount == 0 (never reviewed)
@@ -181,6 +191,57 @@ public class ProductOwnerAgentService : BackgroundService
         _logger.LogInformation(
             "Request #{RequestId} reviewed: Decision={Decision}, Alignment={Alignment}, Completeness={Completeness}",
             request.Id, result.Decision, result.AlignmentScore, result.CompletenessScore);
+
+        // Post agent labels and comments to GitHub Issue if linked
+        if (request.GitHubIssueNumber.HasValue && request.Project != null)
+        {
+            var owner = request.Project.GitHubOwner;
+            var repo = request.Project.GitHubRepo;
+            var issueNumber = request.GitHubIssueNumber.Value;
+
+            await _gitHubService.AddAgentLabelsAsync(owner, repo, issueNumber, result.Decision);
+            await _gitHubService.PostAgentCommentAsync(owner, repo, issueNumber, commentText);
+        }
+    }
+
+    private async Task<bool> IsBudgetExceededAsync(AppDbContext db)
+    {
+        var dailyBudget = int.Parse(_configuration["ProductOwnerAgent:DailyTokenBudget"] ?? "0");
+        var monthlyBudget = int.Parse(_configuration["ProductOwnerAgent:MonthlyTokenBudget"] ?? "0");
+
+        if (dailyBudget <= 0 && monthlyBudget <= 0)
+            return false; // No budget limits configured
+
+        var todayUtc = DateTime.UtcNow.Date;
+        var monthStartUtc = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        if (dailyBudget > 0)
+        {
+            var dailyTokens = await db.AgentReviews
+                .Where(r => r.CreatedAt >= todayUtc)
+                .SumAsync(r => r.PromptTokens + r.CompletionTokens);
+
+            if (dailyTokens >= dailyBudget)
+            {
+                _logger.LogWarning("Daily token budget exceeded: {Used}/{Budget}", dailyTokens, dailyBudget);
+                return true;
+            }
+        }
+
+        if (monthlyBudget > 0)
+        {
+            var monthlyTokens = await db.AgentReviews
+                .Where(r => r.CreatedAt >= monthStartUtc)
+                .SumAsync(r => r.PromptTokens + r.CompletionTokens);
+
+            if (monthlyTokens >= monthlyBudget)
+            {
+                _logger.LogWarning("Monthly token budget exceeded: {Used}/{Budget}", monthlyTokens, monthlyBudget);
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string BuildAgentComment(AgentReviewResult result)

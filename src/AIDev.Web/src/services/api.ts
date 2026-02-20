@@ -109,6 +109,28 @@ export interface AgentConfig {
   maxReviewsPerRequest: number;
   temperature: number;
   modelName: string;
+  dailyTokenBudget: number;
+  monthlyTokenBudget: number;
+}
+
+export interface AgentConfigUpdate {
+  enabled?: boolean;
+  pollingIntervalSeconds?: number;
+  maxReviewsPerRequest?: number;
+  temperature?: number;
+  dailyTokenBudget?: number;
+  monthlyTokenBudget?: number;
+}
+
+export interface TokenBudget {
+  dailyTokensUsed: number;
+  dailyTokenBudget: number;
+  dailyBudgetExceeded: boolean;
+  dailyReviewCount: number;
+  monthlyTokensUsed: number;
+  monthlyTokenBudget: number;
+  monthlyBudgetExceeded: boolean;
+  monthlyReviewCount: number;
 }
 
 export interface Attachment {
@@ -341,6 +363,22 @@ export async function getAgentStats(): Promise<AgentStats> {
 
 export async function getAgentConfig(): Promise<AgentConfig> {
   const { data } = await api.get("/agent/config");
+  return data;
+}
+
+export async function updateAgentConfig(
+  config: AgentConfigUpdate
+): Promise<AgentConfig> {
+  const { data } = await api.put("/agent/config", config);
+  return data;
+}
+
+export async function triggerReReview(requestId: number): Promise<void> {
+  await api.post(`/agent/reviews/re-review/${requestId}`);
+}
+
+export async function getAgentBudget(): Promise<TokenBudget> {
+  const { data } = await api.get("/agent/budget");
   return data;
 }
 

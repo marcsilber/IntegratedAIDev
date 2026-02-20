@@ -8,6 +8,8 @@ public interface IGitHubService
     Task<(int issueNumber, string issueUrl)> CreateIssueAsync(DevRequest request, string owner, string repo);
     Task UpdateIssueAsync(DevRequest request, string owner, string repo);
     Task<List<Octokit.Repository>> GetRepositoriesAsync();
+    Task AddAgentLabelsAsync(string owner, string repo, int issueNumber, AgentDecision decision);
+    Task PostAgentCommentAsync(string owner, string repo, int issueNumber, string commentBody);
 }
 
 public class GitHubService : IGitHubService
@@ -101,6 +103,65 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task AddAgentLabelsAsync(string owner, string repo, int issueNumber, AgentDecision decision)
+    {
+        var label = decision switch
+        {
+            AgentDecision.Approve => "agent:approved",
+            AgentDecision.Reject => "agent:rejected",
+            AgentDecision.Clarify => "agent:needs-info",
+            _ => "agent:reviewed"
+        };
+
+        try
+        {
+            // Ensure the label exists (create if not)
+            try
+            {
+                await _client.Issue.Labels.Get(owner, repo, label);
+            }
+            catch (NotFoundException)
+            {
+                var color = decision switch
+                {
+                    AgentDecision.Approve => "10b981",
+                    AgentDecision.Reject => "ef4444",
+                    AgentDecision.Clarify => "f59e0b",
+                    _ => "6366f1"
+                };
+                await _client.Issue.Labels.Create(owner, repo, new NewLabel(label, color));
+            }
+
+            // Remove any existing agent: labels first
+            var existingLabels = await _client.Issue.Labels.GetAllForIssue(owner, repo, issueNumber);
+            foreach (var existing in existingLabels.Where(l => l.Name.StartsWith("agent:")))
+            {
+                try { await _client.Issue.Labels.RemoveFromIssue(owner, repo, issueNumber, existing.Name); }
+                catch { /* ignore if already removed */ }
+            }
+
+            await _client.Issue.Labels.AddToIssue(owner, repo, issueNumber, new[] { label });
+            _logger.LogInformation("Added label '{Label}' to GitHub Issue #{IssueNumber}", label, issueNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add agent label to GitHub Issue #{IssueNumber}", issueNumber);
+        }
+    }
+
+    public async Task PostAgentCommentAsync(string owner, string repo, int issueNumber, string commentBody)
+    {
+        try
+        {
+            await _client.Issue.Comment.Create(owner, repo, issueNumber, commentBody);
+            _logger.LogInformation("Posted agent comment to GitHub Issue #{IssueNumber}", issueNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to post agent comment to GitHub Issue #{IssueNumber}", issueNumber);
+        }
+    }
+
     private static string FormatIssueBody(DevRequest request)
     {
         var body = $"""
@@ -182,5 +243,17 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Returning empty repo list.");
         return Task.FromResult(new List<Octokit.Repository>());
+    }
+
+    public Task AddAgentLabelsAsync(string owner, string repo, int issueNumber, AgentDecision decision)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping agent labels.");
+        return Task.CompletedTask;
+    }
+
+    public Task PostAgentCommentAsync(string owner, string repo, int issueNumber, string commentBody)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping agent comment.");
+        return Task.CompletedTask;
     }
 }
