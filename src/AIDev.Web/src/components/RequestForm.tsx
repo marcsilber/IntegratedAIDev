@@ -70,7 +70,7 @@ export default function RequestForm() {
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
             placeholder="Short summary of the issue or request"
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
 
@@ -88,7 +88,7 @@ export default function RequestForm() {
                   requestType: e.target.value as RequestType,
                 })
               }
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
             >
               {requestTypes.map((t) => (
                 <option key={t} value={t}>
@@ -108,7 +108,7 @@ export default function RequestForm() {
               onChange={(e) =>
                 setForm({ ...form, priority: e.target.value as Priority })
               }
-              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+              className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
             >
               {priorities.map((p) => (
                 <option key={p} value={p}>
@@ -130,7 +130,7 @@ export default function RequestForm() {
             value={form.description}
             onChange={(e) => setForm({ ...form, description: e.target.value })}
             placeholder="Detailed explanation of the issue or feature request"
-            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+            className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
           />
         </div>
 
@@ -148,7 +148,7 @@ export default function RequestForm() {
                   setForm({ ...form, stepsToReproduce: e.target.value })
                 }
                 placeholder="1. Go to...&#10;2. Click on...&#10;3. Observe..."
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
 
@@ -164,7 +164,7 @@ export default function RequestForm() {
                   setForm({ ...form, expectedBehavior: e.target.value })
                 }
                 placeholder="What should happen?"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
 
@@ -180,7 +180,7 @@ export default function RequestForm() {
                   setForm({ ...form, actualBehavior: e.target.value })
                 }
                 placeholder="What actually happens?"
-                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-3 focus:ring-blue-500/10"
+                className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm font-[inherit] transition-colors duration-150 focus:outline-none focus:border-primary focus:ring-2 focus:ring-blue-500/10"
               />
             </div>
           </>
