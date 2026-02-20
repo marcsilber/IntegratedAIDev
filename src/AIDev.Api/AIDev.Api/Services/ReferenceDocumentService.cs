@@ -1,8 +1,8 @@
 namespace AIDev.Api.Services;
 
 /// <summary>
-/// Loads and caches reference documents (ApplicationObjectives.md, ApplicationSalesPack.md)
-/// used as context in the Product Owner Agent's system prompt.
+/// Loads and caches reference documents (ApplicationObjectives.md, ApplicationSalesPack.md,
+/// ApplicationFeatures.md) used as context in the Product Owner Agent's system prompt.
 /// </summary>
 public interface IReferenceDocumentService
 {
@@ -20,7 +20,8 @@ public class ReferenceDocumentService : IReferenceDocumentService
     private static readonly string[] ReferenceFiles = 
     {
         "ApplicationObjectives.md",
-        "ApplicationSalesPack.md"
+        "ApplicationSalesPack.md",
+        "ApplicationFeatures.md"
     };
 
     public ReferenceDocumentService(IConfiguration configuration, ILogger<ReferenceDocumentService> logger)

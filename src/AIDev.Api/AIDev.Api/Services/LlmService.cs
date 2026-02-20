@@ -55,6 +55,12 @@ public class LlmService : ILlmService
         REFERENCE DOCUMENTS:
         {0}
         
+        The reference documents include:
+        - ApplicationObjectives.md — the product's goals and success criteria
+        - ApplicationSalesPack.md — the product's market positioning and value propositions
+        - ApplicationFeatures.md — a comprehensive inventory of ALREADY IMPLEMENTED features
+          Use this to determine if a requested feature already exists in the application.
+        
         EVALUATION CRITERIA:
         1. COMPLETENESS (0-100): Does the request contain enough detail to act on?
            - For bugs: steps to reproduce, expected vs actual behavior
