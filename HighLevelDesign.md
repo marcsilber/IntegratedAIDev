@@ -28,7 +28,7 @@ A web application backed by an AI-agent pipeline that:
 |-------|-------|--------|
 | **Phase 1** | Structured request intake, tester web app, GitHub Issues sync | 🔨 In Progress |
 | **Phase 2** | Product Owner Agent (triage, clarification, approval) | ⏳ Planned |
-| **Phase 3** | Architect Agent (solution design, impact analysis) | ⏳ Planned |
+| **Phase 3** | Architect Agent (solution design, impact analysis) | 📄 Designed |
 | **Phase 4** | Planning Agent (branch management, agent assignment, deploy orchestration) | ⏳ Planned |
 
 ## 5. Phase 1 Architecture
@@ -585,10 +585,12 @@ No breaking changes to existing Phase 1 functionality. The agent is disabled by 
 
 ### Phase 3 — Architect Agent
 - Triggered on Product Owner approval (status = `Triaged`)
-- Reads codebase from the target repo via GitHub API
-- Proposes solution, lists impacted files, migration needs
-- Posts solution as an Issue comment and AgentReview record
-- Human reviews and approves before implementation
+- Reads codebase from the target repo via GitHub API (two-phase: repo map → targeted file contents)
+- Proposes solution with file-level impact analysis, migration needs, risk assessment, implementation order
+- Posts solution as an Issue comment and `ArchitectReview` record
+- Human reviews and either approves, rejects, or requests changes (conversational refinement)
+- New status: `ArchitectReview` (awaiting human decision on proposed solution)
+- See **[Phase3DetailedDesign.md](Phase3DetailedDesign.md)** for the complete detailed design
 
 ### Phase 4 — Planning Agent
 - Creates feature branches from approved solutions
