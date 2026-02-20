@@ -17,7 +17,6 @@ uploads/
 
 # Environment files with secrets
 .env.local
-.env.production
 
 # Temp files
 webapp-logs/
