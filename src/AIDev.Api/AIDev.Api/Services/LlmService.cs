@@ -93,7 +93,7 @@ public class LlmService : ILlmService
         You MUST respond with valid JSON only. No markdown, no code fences, no explanation outside the JSON.
         
         JSON SCHEMA:
-        {
+        {{
           "decision": "approve" | "reject" | "clarify",
           "reasoning": "string — your detailed explanation",
           "alignmentScore": number (0-100),
@@ -104,7 +104,7 @@ public class LlmService : ILlmService
           "tags": ["string"] | null,
           "isDuplicate": boolean,
           "duplicateOfRequestId": number | null
-        }
+        }}
         """;
 
     public LlmService(IConfiguration configuration, IReferenceDocumentService refDocs, ILogger<LlmService> logger)
