@@ -66,6 +66,8 @@ public class RequestResponseDto
     public DateTime UpdatedAt { get; set; }
     public List<CommentResponseDto> Comments { get; set; } = new();
     public List<AttachmentResponseDto> Attachments { get; set; } = new();
+    public AgentReviewResponseDto? LatestAgentReview { get; set; }
+    public int AgentReviewCount { get; set; }
 }
 
 public class AttachmentResponseDto
@@ -84,6 +86,8 @@ public class CommentResponseDto
     public int Id { get; set; }
     public string Author { get; set; } = string.Empty;
     public string Content { get; set; } = string.Empty;
+    public bool IsAgentComment { get; set; }
+    public int? AgentReviewId { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -126,4 +130,53 @@ public class UpdateProjectDto
     public string? Description { get; set; }
 
     public bool? IsActive { get; set; }
+}
+
+// ── Agent DTOs ────────────────────────────────────────────────────────────
+
+public class AgentReviewResponseDto
+{
+    public int Id { get; set; }
+    public int DevRequestId { get; set; }
+    public string RequestTitle { get; set; } = string.Empty;
+    public string AgentType { get; set; } = string.Empty;
+    public AgentDecision Decision { get; set; }
+    public string Reasoning { get; set; } = string.Empty;
+    public int AlignmentScore { get; set; }
+    public int CompletenessScore { get; set; }
+    public int SalesAlignmentScore { get; set; }
+    public string? SuggestedPriority { get; set; }
+    public string? Tags { get; set; }
+    public int PromptTokens { get; set; }
+    public int CompletionTokens { get; set; }
+    public string ModelUsed { get; set; } = string.Empty;
+    public int DurationMs { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public class AgentOverrideDto
+{
+    [Required]
+    public RequestStatus NewStatus { get; set; }
+    public string? Reason { get; set; }
+}
+
+public class AgentStatsDto
+{
+    public int TotalReviews { get; set; }
+    public Dictionary<string, int> ByDecision { get; set; } = new();
+    public double AverageAlignmentScore { get; set; }
+    public double AverageCompletenessScore { get; set; }
+    public double AverageSalesAlignmentScore { get; set; }
+    public int TotalTokensUsed { get; set; }
+    public int AverageDurationMs { get; set; }
+}
+
+public class AgentConfigDto
+{
+    public bool Enabled { get; set; }
+    public int PollingIntervalSeconds { get; set; }
+    public int MaxReviewsPerRequest { get; set; }
+    public float Temperature { get; set; }
+    public string ModelName { get; set; } = string.Empty;
 }

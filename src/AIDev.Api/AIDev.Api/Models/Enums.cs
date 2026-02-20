@@ -19,9 +19,17 @@ public enum Priority
 public enum RequestStatus
 {
     New,
+    NeedsClarification,
     Triaged,
     Approved,
     InProgress,
     Done,
     Rejected
+}
+
+public enum AgentDecision
+{
+    Approve,
+    Reject,
+    Clarify
 }

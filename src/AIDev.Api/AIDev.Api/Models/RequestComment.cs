@@ -17,5 +17,10 @@ public class RequestComment
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsAgentComment { get; set; } = false;
+
+    public int? AgentReviewId { get; set; }
+    public AgentReview? AgentReview { get; set; }
+
     public DevRequest? DevRequest { get; set; }
 }

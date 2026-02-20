@@ -10,6 +10,7 @@ import {
 
 const statusColors: Record<RequestStatus, string> = {
   New: "#3b82f6",
+  NeedsClarification: "#f97316",
   Triaged: "#8b5cf6",
   Approved: "#10b981",
   InProgress: "#f59e0b",

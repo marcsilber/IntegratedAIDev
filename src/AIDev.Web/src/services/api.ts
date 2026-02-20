@@ -41,11 +41,14 @@ export type RequestType = "Bug" | "Feature" | "Enhancement" | "Question";
 export type Priority = "Low" | "Medium" | "High" | "Critical";
 export type RequestStatus =
   | "New"
+  | "NeedsClarification"
   | "Triaged"
   | "Approved"
   | "InProgress"
   | "Done"
   | "Rejected";
+
+export type AgentDecision = "Approve" | "Reject" | "Clarify";
 
 export interface DevRequest {
   id: number;
@@ -67,6 +70,45 @@ export interface DevRequest {
   updatedAt: string;
   comments: Comment[];
   attachments: Attachment[];
+  latestAgentReview?: AgentReview;
+  agentReviewCount: number;
+}
+
+export interface AgentReview {
+  id: number;
+  devRequestId: number;
+  requestTitle: string;
+  agentType: string;
+  decision: AgentDecision;
+  reasoning: string;
+  alignmentScore: number;
+  completenessScore: number;
+  salesAlignmentScore: number;
+  suggestedPriority?: string;
+  tags?: string;
+  promptTokens: number;
+  completionTokens: number;
+  modelUsed: string;
+  durationMs: number;
+  createdAt: string;
+}
+
+export interface AgentStats {
+  totalReviews: number;
+  byDecision: Record<string, number>;
+  averageAlignmentScore: number;
+  averageCompletenessScore: number;
+  averageSalesAlignmentScore: number;
+  totalTokensUsed: number;
+  averageDurationMs: number;
+}
+
+export interface AgentConfig {
+  enabled: boolean;
+  pollingIntervalSeconds: number;
+  maxReviewsPerRequest: number;
+  temperature: number;
+  modelName: string;
 }
 
 export interface Attachment {
@@ -101,6 +143,8 @@ export interface Comment {
   id: number;
   author: string;
   content: string;
+  isAgentComment: boolean;
+  agentReviewId?: number;
   createdAt: string;
 }
 
@@ -261,6 +305,43 @@ export async function deleteAttachment(
   attachmentId: number
 ): Promise<void> {
   await api.delete(`/requests/${requestId}/attachments/${attachmentId}`);
+}
+
+// ── Agent Functions ───────────────────────────────────────────────────────
+
+export async function getAgentReviews(params?: {
+  requestId?: number;
+  decision?: AgentDecision;
+}): Promise<AgentReview[]> {
+  const { data } = await api.get("/agent/reviews", { params });
+  return data;
+}
+
+export async function getAgentReview(id: number): Promise<AgentReview> {
+  const { data } = await api.get(`/agent/reviews/${id}`);
+  return data;
+}
+
+export async function overrideAgentReview(
+  reviewId: number,
+  newStatus: RequestStatus,
+  reason?: string
+): Promise<AgentReview> {
+  const { data } = await api.post(`/agent/reviews/${reviewId}/override`, {
+    newStatus,
+    reason,
+  });
+  return data;
+}
+
+export async function getAgentStats(): Promise<AgentStats> {
+  const { data } = await api.get("/agent/stats");
+  return data;
+}
+
+export async function getAgentConfig(): Promise<AgentConfig> {
+  const { data } = await api.get("/agent/config");
+  return data;
 }
 
 export default api;

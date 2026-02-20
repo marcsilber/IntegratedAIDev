@@ -9,6 +9,7 @@ import {
   fetchAttachmentBlob,
   downloadAttachment,
   deleteAttachment,
+  overrideAgentReview,
   type DevRequest,
   type RequestStatus,
   type Attachment,
@@ -42,6 +43,7 @@ function AuthImage({ requestId, attachment }: { requestId: number; attachment: A
 
 const statusOptions: RequestStatus[] = [
   "New",
+  "NeedsClarification",
   "Triaged",
   "Approved",
   "InProgress",
@@ -51,6 +53,7 @@ const statusOptions: RequestStatus[] = [
 
 const statusColors: Record<RequestStatus, string> = {
   New: "#3b82f6",
+  NeedsClarification: "#f97316",
   Triaged: "#8b5cf6",
   Approved: "#10b981",
   InProgress: "#f59e0b",
@@ -302,6 +305,100 @@ export default function RequestDetail() {
           </div>
         </div>
 
+        {/* Agent Review Panel */}
+        {request.latestAgentReview && (
+          <div className="detail-section agent-review-panel">
+            <h2>Product Owner Agent Review</h2>
+            <div className="agent-review-card" style={{
+              border: `2px solid ${
+                request.latestAgentReview.decision === "Approve" ? "#10b981" :
+                request.latestAgentReview.decision === "Reject" ? "#ef4444" : "#f97316"
+              }`,
+              borderRadius: "8px",
+              padding: "1rem",
+              backgroundColor: "#f8fafc"
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <span className="badge" style={{
+                  backgroundColor:
+                    request.latestAgentReview.decision === "Approve" ? "#10b981" :
+                    request.latestAgentReview.decision === "Reject" ? "#ef4444" : "#f97316",
+                  color: "#fff",
+                  fontSize: "0.9rem",
+                  padding: "0.3rem 0.8rem"
+                }}>
+                  {request.latestAgentReview.decision}
+                </span>
+                <span className="muted" style={{ fontSize: "0.8rem" }}>
+                  {new Date(request.latestAgentReview.createdAt).toLocaleString()} · {request.latestAgentReview.modelUsed} · {request.latestAgentReview.durationMs}ms
+                </span>
+              </div>
+
+              <p style={{ marginBottom: "0.75rem" }}>{request.latestAgentReview.reasoning}</p>
+
+              <div className="agent-scores" style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem" }}>
+                <div>
+                  <strong>Alignment:</strong>{" "}
+                  <span style={{ color: request.latestAgentReview.alignmentScore >= 60 ? "#10b981" : "#ef4444" }}>
+                    {request.latestAgentReview.alignmentScore}/100
+                  </span>
+                </div>
+                <div>
+                  <strong>Completeness:</strong>{" "}
+                  <span style={{ color: request.latestAgentReview.completenessScore >= 50 ? "#10b981" : "#ef4444" }}>
+                    {request.latestAgentReview.completenessScore}/100
+                  </span>
+                </div>
+                <div>
+                  <strong>Sales Alignment:</strong>{" "}
+                  <span style={{ color: request.latestAgentReview.salesAlignmentScore >= 50 ? "#10b981" : "#ef4444" }}>
+                    {request.latestAgentReview.salesAlignmentScore}/100
+                  </span>
+                </div>
+              </div>
+
+              {request.latestAgentReview.suggestedPriority && (
+                <p><strong>Suggested Priority:</strong> {request.latestAgentReview.suggestedPriority}</p>
+              )}
+
+              {request.latestAgentReview.tags && (
+                <p><strong>Tags:</strong> {request.latestAgentReview.tags}</p>
+              )}
+
+              <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem" }}>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={async () => {
+                    const reason = prompt("Reason for override (optional):");
+                    try {
+                      await overrideAgentReview(request.latestAgentReview!.id, "Approved", reason ?? undefined);
+                      loadRequest(request.id);
+                    } catch { setError("Failed to override"); }
+                  }}
+                >
+                  Override → Approve
+                </button>
+                <button
+                  className="btn btn-sm btn-secondary"
+                  onClick={async () => {
+                    const reason = prompt("Reason for override (optional):");
+                    try {
+                      await overrideAgentReview(request.latestAgentReview!.id, "Rejected", reason ?? undefined);
+                      loadRequest(request.id);
+                    } catch { setError("Failed to override"); }
+                  }}
+                >
+                  Override → Reject
+                </button>
+              </div>
+
+              <p className="muted" style={{ marginTop: "0.5rem", fontSize: "0.75rem" }}>
+                Review #{request.agentReviewCount} · Tokens: {request.latestAgentReview.promptTokens + request.latestAgentReview.completionTokens}
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="detail-section">
           <h2>Comments ({request.comments.length})</h2>
           {request.comments.length === 0 ? (
@@ -309,14 +406,18 @@ export default function RequestDetail() {
           ) : (
             <div className="comments-list">
               {request.comments.map((c) => (
-                <div key={c.id} className="comment">
+                <div key={c.id} className={`comment ${c.isAgentComment ? "comment-agent" : ""}`}
+                  style={c.isAgentComment ? { borderLeft: "3px solid #8b5cf6", backgroundColor: "#f5f3ff" } : {}}>
                   <div className="comment-header">
-                    <strong>{c.author}</strong>
+                    <strong>
+                      {c.isAgentComment && "🤖 "}
+                      {c.author}
+                    </strong>
                     <span className="muted">
                       {new Date(c.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p>{c.content}</p>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{c.content}</p>
                 </div>
               ))}
             </div>

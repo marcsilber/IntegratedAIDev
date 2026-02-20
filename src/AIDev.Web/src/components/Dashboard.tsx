@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboard, type Dashboard } from "../services/api";
+import { getDashboard, getAgentStats, type Dashboard, type AgentStats } from "../services/api";
 
 export default function DashboardView() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,8 +14,12 @@ export default function DashboardView() {
 
   async function loadDashboard() {
     try {
-      const data = await getDashboard();
-      setDashboard(data);
+      const [dashData, statsData] = await Promise.all([
+        getDashboard(),
+        getAgentStats().catch(() => null),
+      ]);
+      setDashboard(dashData);
+      setAgentStats(statsData);
     } catch {
       setError("Failed to load dashboard");
     } finally {
@@ -135,6 +140,48 @@ export default function DashboardView() {
           </table>
         )}
       </div>
+
+      {agentStats && agentStats.totalReviews > 0 && (
+        <div className="dashboard-card" style={{ marginTop: "1.5rem" }}>
+          <h2>🤖 Product Owner Agent</h2>
+          <div className="stats-grid" style={{ marginBottom: "1rem" }}>
+            <div className="stat-card">
+              <div className="stat-number">{agentStats.totalReviews}</div>
+              <div className="stat-label">Total Reviews</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{agentStats.byDecision["Approve"] || 0}</div>
+              <div className="stat-label">Approved</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{agentStats.byDecision["Clarify"] || 0}</div>
+              <div className="stat-label">Clarify</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number">{agentStats.byDecision["Reject"] || 0}</div>
+              <div className="stat-label">Rejected</div>
+            </div>
+          </div>
+          <div className="breakdown-list">
+            <div className="breakdown-item">
+              <span>Avg Alignment Score</span>
+              <span className="breakdown-count">{agentStats.averageAlignmentScore}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Avg Completeness Score</span>
+              <span className="breakdown-count">{agentStats.averageCompletenessScore}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Total Tokens Used</span>
+              <span className="breakdown-count">{agentStats.totalTokensUsed.toLocaleString()}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Avg Response Time</span>
+              <span className="breakdown-count">{agentStats.averageDurationMs}ms</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

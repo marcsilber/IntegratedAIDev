@@ -21,6 +21,14 @@ else
     builder.Services.AddSingleton<IGitHubService, NullGitHubService>();
 }
 
+// ── Product Owner Agent ───────────────────────────────────────────────────
+builder.Services.AddSingleton<IReferenceDocumentService, ReferenceDocumentService>();
+if (!string.IsNullOrWhiteSpace(gitHubToken))
+{
+    builder.Services.AddSingleton<ILlmService, LlmService>();
+    builder.Services.AddHostedService<ProductOwnerAgentService>();
+}
+
 // ── Authentication (Entra ID) ─────────────────────────────────────────────
 builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration, "AzureAd");
 

@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     public DbSet<RequestComment> RequestComments => Set<RequestComment>();
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
+    public DbSet<AgentReview> AgentReviews => Set<AgentReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -31,6 +32,11 @@ public class AppDbContext : DbContext
             entity.HasMany(e => e.Comments)
                 .WithOne(c => c.DevRequest)
                 .HasForeignKey(c => c.DevRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasMany(e => e.AgentReviews)
+                .WithOne(r => r.DevRequest)
+                .HasForeignKey(r => r.DevRequestId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(e => e.Project)
@@ -69,6 +75,21 @@ public class AppDbContext : DbContext
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Author).IsRequired().HasMaxLength(200);
             entity.Property(e => e.Content).IsRequired();
+
+            entity.HasOne(e => e.AgentReview)
+                .WithMany(r => r.Comments)
+                .HasForeignKey(e => e.AgentReviewId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<AgentReview>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AgentType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.Reasoning).IsRequired();
+            entity.Property(e => e.Decision).HasConversion<string>();
+            entity.Property(e => e.SuggestedPriority).HasMaxLength(50);
+            entity.Property(e => e.ModelUsed).IsRequired().HasMaxLength(100);
         });
     }
 }

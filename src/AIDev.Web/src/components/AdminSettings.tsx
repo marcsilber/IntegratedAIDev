@@ -3,27 +3,34 @@ import {
   getAdminProjects,
   syncProjects,
   updateProject,
+  getAgentConfig,
   type Project,
+  type AgentConfig,
 } from "../services/api";
 
 export default function AdminSettings() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [agentConfig, setAgentConfig] = useState<AgentConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    loadProjects();
+    loadData();
   }, []);
 
-  async function loadProjects() {
+  async function loadData() {
     setLoading(true);
     try {
-      const data = await getAdminProjects();
-      setProjects(data);
+      const [projectsData, configData] = await Promise.all([
+        getAdminProjects(),
+        getAgentConfig().catch(() => null),
+      ]);
+      setProjects(projectsData);
+      setAgentConfig(configData);
     } catch {
-      setError("Failed to load projects");
+      setError("Failed to load settings");
     } finally {
       setLoading(false);
     }
@@ -151,6 +158,55 @@ export default function AdminSettings() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Product Owner Agent Configuration */}
+      {agentConfig && (
+        <div style={{ marginTop: "2rem" }}>
+          <h2>🤖 Product Owner Agent</h2>
+          <div className="request-table" style={{ marginTop: "1rem" }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Setting</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><strong>Status</strong></td>
+                  <td>
+                    <span className="badge" style={{
+                      backgroundColor: agentConfig.enabled ? "#10b981" : "#94a3b8",
+                      color: "#fff"
+                    }}>
+                      {agentConfig.enabled ? "Enabled" : "Disabled"}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><strong>Model</strong></td>
+                  <td>{agentConfig.modelName}</td>
+                </tr>
+                <tr>
+                  <td><strong>Polling Interval</strong></td>
+                  <td>{agentConfig.pollingIntervalSeconds}s</td>
+                </tr>
+                <tr>
+                  <td><strong>Max Reviews / Request</strong></td>
+                  <td>{agentConfig.maxReviewsPerRequest}</td>
+                </tr>
+                <tr>
+                  <td><strong>Temperature</strong></td>
+                  <td>{agentConfig.temperature}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p className="muted" style={{ marginTop: "0.5rem" }}>
+            Agent configuration is managed through appsettings.json on the server.
+          </p>
         </div>
       )}
     </div>

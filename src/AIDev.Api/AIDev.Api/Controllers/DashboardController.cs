@@ -27,6 +27,7 @@ public class DashboardController : ControllerBase
     {
         var requests = await _db.DevRequests
             .Include(r => r.Comments)
+            .Include(r => r.AgentReviews)
             .ToListAsync();
 
         var dashboard = new DashboardDto
@@ -60,6 +61,8 @@ public class DashboardController : ControllerBase
                         Id = c.Id,
                         Author = c.Author,
                         Content = c.Content,
+                        IsAgentComment = c.IsAgentComment,
+                        AgentReviewId = c.AgentReviewId,
                         CreatedAt = c.CreatedAt
                     }).ToList()
                 }).ToList()

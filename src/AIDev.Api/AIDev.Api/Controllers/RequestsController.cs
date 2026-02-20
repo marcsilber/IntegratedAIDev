@@ -38,6 +38,7 @@ public class RequestsController : ControllerBase
             .Include(r => r.Comments)
             .Include(r => r.Project)
             .Include(r => r.Attachments)
+            .Include(r => r.AgentReviews)
             .AsQueryable();
 
         if (status.HasValue)
@@ -70,6 +71,7 @@ public class RequestsController : ControllerBase
             .Include(r => r.Comments)
             .Include(r => r.Project)
             .Include(r => r.Attachments)
+            .Include(r => r.AgentReviews)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (request == null)
@@ -147,6 +149,7 @@ public class RequestsController : ControllerBase
             .Include(r => r.Comments)
             .Include(r => r.Project)
             .Include(r => r.Attachments)
+            .Include(r => r.AgentReviews)
             .FirstOrDefaultAsync(r => r.Id == id);
 
         if (request == null)
@@ -349,11 +352,33 @@ public class RequestsController : ControllerBase
         GitHubIssueUrl = r.GitHubIssueUrl,
         CreatedAt = r.CreatedAt,
         UpdatedAt = r.UpdatedAt,
+        AgentReviewCount = r.AgentReviewCount,
+        LatestAgentReview = r.AgentReviews?.OrderByDescending(a => a.CreatedAt).Select(a => new AgentReviewResponseDto
+        {
+            Id = a.Id,
+            DevRequestId = a.DevRequestId,
+            RequestTitle = r.Title,
+            AgentType = a.AgentType,
+            Decision = a.Decision,
+            Reasoning = a.Reasoning,
+            AlignmentScore = a.AlignmentScore,
+            CompletenessScore = a.CompletenessScore,
+            SalesAlignmentScore = a.SalesAlignmentScore,
+            SuggestedPriority = a.SuggestedPriority,
+            Tags = a.Tags,
+            PromptTokens = a.PromptTokens,
+            CompletionTokens = a.CompletionTokens,
+            ModelUsed = a.ModelUsed,
+            DurationMs = a.DurationMs,
+            CreatedAt = a.CreatedAt
+        }).FirstOrDefault(),
         Comments = r.Comments.Select(c => new CommentResponseDto
         {
             Id = c.Id,
             Author = c.Author,
             Content = c.Content,
+            IsAgentComment = c.IsAgentComment,
+            AgentReviewId = c.AgentReviewId,
             CreatedAt = c.CreatedAt
         }).ToList(),
         Attachments = r.Attachments.Select(a => new AttachmentResponseDto

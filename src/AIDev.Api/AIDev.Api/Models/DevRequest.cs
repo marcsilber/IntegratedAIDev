@@ -45,7 +45,13 @@ public class DevRequest
 
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
+    public DateTime? LastAgentReviewAt { get; set; }
+
+    public int AgentReviewCount { get; set; } = 0;
+
     public List<RequestComment> Comments { get; set; } = new();
 
     public List<Attachment> Attachments { get; set; } = new();
+
+    public List<AgentReview> AgentReviews { get; set; } = new();
 }
