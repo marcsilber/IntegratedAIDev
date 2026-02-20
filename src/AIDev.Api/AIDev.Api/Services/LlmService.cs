@@ -19,6 +19,8 @@ public record AgentReviewResult(
     List<string>? ClarificationQuestions,
     string? SuggestedPriority,
     List<string>? Tags,
+    bool IsDuplicate,
+    int? DuplicateOfRequestId,
     int PromptTokens,
     int CompletionTokens,
     string ModelUsed,
@@ -31,7 +33,8 @@ public record AgentReviewResult(
 public interface ILlmService
 {
     Task<AgentReviewResult> ReviewRequestAsync(DevRequest request,
-        List<RequestComment>? conversationHistory = null);
+        List<RequestComment>? conversationHistory = null,
+        List<DevRequest>? existingRequests = null);
 }
 
 public class LlmService : ILlmService
@@ -66,8 +69,17 @@ public class LlmService : ILlmService
            - Would it strengthen the sales pack / value proposition?
            - Does it serve the target audience?
         
+        4. DUPLICATE / ALREADY EXISTS CHECK:
+           - Compare against the EXISTING REQUESTS list provided below.
+           - If the request describes functionality that already exists, is already being worked on,
+             or has already been completed (status Done/InProgress/Approved/Triaged), flag it as a duplicate.
+           - If a similar request was previously Rejected, note this but still evaluate on merit.
+           - Consider both exact duplicates and requests that substantially overlap.
+        
         DECISION RULES:
-        - APPROVE if alignment >= 60 AND completeness >= 50: The request is clear and on-strategy.
+        - REJECT if the request is a duplicate of an existing Done/InProgress/Approved request.
+          Clearly state which existing request(s) it duplicates.
+        - APPROVE if alignment >= 60 AND completeness >= 50 AND not a duplicate.
         - CLARIFY if completeness < 50: The request lacks detail. Ask specific questions.
         - REJECT if alignment < 30: The request is clearly out of scope or contradicts product direction.
         - When in doubt between approve and clarify, prefer clarify.
@@ -83,7 +95,9 @@ public class LlmService : ILlmService
           "salesAlignmentScore": number (0-100),
           "clarificationQuestions": ["string"] | null,
           "suggestedPriority": "Low" | "Medium" | "High" | "Critical" | null,
-          "tags": ["string"] | null
+          "tags": ["string"] | null,
+          "isDuplicate": boolean,
+          "duplicateOfRequestId": number | null
         }
         """;
 
@@ -109,12 +123,13 @@ public class LlmService : ILlmService
     }
 
     public async Task<AgentReviewResult> ReviewRequestAsync(DevRequest request,
-        List<RequestComment>? conversationHistory = null)
+        List<RequestComment>? conversationHistory = null,
+        List<DevRequest>? existingRequests = null)
     {
         var sw = Stopwatch.StartNew();
 
         var systemPrompt = string.Format(SystemPromptTemplate, _refDocs.GetSystemPromptContext());
-        var userMessage = BuildUserMessage(request, conversationHistory);
+        var userMessage = BuildUserMessage(request, conversationHistory, existingRequests);
 
         _logger.LogInformation("Reviewing request #{RequestId} '{Title}' via {Model}",
             request.Id, request.Title, _modelName);
@@ -145,7 +160,7 @@ public class LlmService : ILlmService
         return ParseResponse(responseText, promptTokens, completionTokens, (int)sw.ElapsedMilliseconds);
     }
 
-    private static string BuildUserMessage(DevRequest request, List<RequestComment>? conversationHistory)
+    private static string BuildUserMessage(DevRequest request, List<RequestComment>? conversationHistory, List<DevRequest>? existingRequests)
     {
         var parts = new List<string>
         {
@@ -167,6 +182,18 @@ public class LlmService : ILlmService
 
         parts.Add($"Submitted By: {request.SubmittedBy}");
 
+        // Include existing requests for duplicate detection
+        if (existingRequests != null && existingRequests.Count > 0)
+        {
+            parts.Add("");
+            parts.Add("EXISTING REQUESTS (check for duplicates/already-implemented features):");
+            foreach (var er in existingRequests)
+            {
+                var ghRef = er.GitHubIssueNumber.HasValue ? $" [GitHub Issue #{er.GitHubIssueNumber}]" : "";
+                parts.Add($"- Request #{er.Id}{ghRef}: [{er.Status}] [{er.RequestType}] {er.Title} — {Truncate(er.Description, 150)}");
+            }
+        }
+
         if (conversationHistory != null && conversationHistory.Count > 0)
         {
             parts.Add("");
@@ -179,6 +206,12 @@ public class LlmService : ILlmService
         }
 
         return string.Join("\n", parts);
+    }
+
+    private static string Truncate(string text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text) || text.Length <= maxLength) return text;
+        return text[..maxLength] + "...";
     }
 
     private AgentReviewResult ParseResponse(string responseText, int promptTokens, int completionTokens, int durationMs)
@@ -221,6 +254,8 @@ public class LlmService : ILlmService
                 ClarificationQuestions: parsed.ClarificationQuestions,
                 SuggestedPriority: parsed.SuggestedPriority,
                 Tags: parsed.Tags,
+                IsDuplicate: parsed.IsDuplicate,
+                DuplicateOfRequestId: parsed.DuplicateOfRequestId,
                 PromptTokens: promptTokens,
                 CompletionTokens: completionTokens,
                 ModelUsed: _modelName,
@@ -241,6 +276,8 @@ public class LlmService : ILlmService
                 ClarificationQuestions: new List<string> { "The automated review encountered an issue. A human reviewer should assess this request." },
                 SuggestedPriority: null,
                 Tags: null,
+                IsDuplicate: false,
+                DuplicateOfRequestId: null,
                 PromptTokens: promptTokens,
                 CompletionTokens: completionTokens,
                 ModelUsed: _modelName,
@@ -259,5 +296,7 @@ public class LlmService : ILlmService
         public List<string>? ClarificationQuestions { get; set; }
         public string? SuggestedPriority { get; set; }
         public List<string>? Tags { get; set; }
+        public bool IsDuplicate { get; set; }
+        public int? DuplicateOfRequestId { get; set; }
     }
 }

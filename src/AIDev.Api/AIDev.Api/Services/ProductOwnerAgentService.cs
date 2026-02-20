@@ -112,7 +112,15 @@ public class ProductOwnerAgentService : BackgroundService
             ? request.Comments.OrderBy(c => c.CreatedAt).ToList()
             : null;
 
-        var result = await _llmService.ReviewRequestAsync(request, conversationHistory);
+        // Fetch existing requests from the same project for duplicate detection
+        var existingRequests = await db.DevRequests
+            .Include(r => r.Project)
+            .Where(r => r.Id != request.Id && r.ProjectId == request.ProjectId)
+            .OrderByDescending(r => r.CreatedAt)
+            .Take(50) // Limit to recent 50 to keep prompt manageable
+            .ToListAsync(ct);
+
+        var result = await _llmService.ReviewRequestAsync(request, conversationHistory, existingRequests);
 
         // Create the AgentReview record
         var review = new AgentReview
@@ -188,6 +196,14 @@ public class ProductOwnerAgentService : BackgroundService
 
         if (result.SuggestedPriority != null)
             lines.Add($"**Suggested Priority:** {result.SuggestedPriority}");
+
+        if (result.IsDuplicate)
+        {
+            lines.Add("");
+            lines.Add(result.DuplicateOfRequestId.HasValue
+                ? $"**⚠️ Duplicate detected:** This request appears to duplicate Request #{result.DuplicateOfRequestId}."
+                : "**⚠️ Duplicate detected:** This request appears to duplicate an existing request or already-implemented feature.");
+        }
 
         if (result.Tags is { Count: > 0 })
             lines.Add($"**Tags:** {string.Join(", ", result.Tags)}");
