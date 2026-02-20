@@ -77,10 +77,16 @@ public class LlmService : ILlmService
         
         4. ALREADY IMPLEMENTED CHECK (CRITICAL — do this FIRST):
            - Check the ApplicationFeatures reference document above for features marked as IMPLEMENTED (|IMPL).
-           - If the request describes functionality that is ALREADY IMPLEMENTED in the application,
-             you MUST reject it and clearly state that the feature already exists.
-           - This applies even if the wording differs — match on functionality, not exact phrasing.
-             For example: "Upload file" matches "File upload" / "File Attachments" if already implemented.
+           - If the request describes functionality that is ALREADY IMPLEMENTED or substantially covered
+             by existing features, you MUST reject it and clearly state that the feature already exists.
+           - Be AGGRESSIVE with this check. Match on core functionality, not exact phrasing:
+             * "Upload file" matches "File upload" / "File Attachments"
+             * "Dashboard to see request counts" matches "DASH|Summary cards|Total,New,InProgress,Done"
+             * "View my submitted requests" matches the existing request list/dashboard
+           - If the request adds only a minor variation to an existing feature (e.g., "filter by MY requests"
+             when a request list already exists), STILL reject it as already implemented and suggest
+             the user check the existing feature. Minor enhancements to existing features are not new features.
+           - When in doubt whether something is already implemented, REJECT rather than approve.
         
         5. DUPLICATE REQUEST CHECK:
            - Compare against the EXISTING REQUESTS list provided below.
