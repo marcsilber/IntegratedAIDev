@@ -194,6 +194,21 @@
 | Request-Review Relationship | `DevRequest.AgentReviews` — one-to-many. Tracks `LastAgentReviewAt` and `AgentReviewCount` on the request. | Phase 2 | ✅ Implemented |
 | Latest Review in Request DTO | `RequestResponseDto` includes `LatestAgentReview` and `AgentReviewCount` for display in the UI. | Phase 2 | ✅ Implemented |
 
+### 7.7 GitHub Integration
+
+| Feature | Description | Phase | Status |
+|---------|-------------|-------|--------|
+| GitHub Agent Labels | After each review, creates and applies a label (`agent:approved` green, `agent:rejected` red, `agent:needs-info` yellow) to the linked GitHub Issue. Removes any previous `agent:` label first. | Phase 2 | ✅ Implemented |
+| GitHub Agent Comments | Posts the full agent review reasoning (decision, scores, suggested priority, tags, clarification questions) as a comment on the linked GitHub Issue. | Phase 2 | ✅ Implemented |
+
+### 7.8 Token Budget Management
+
+| Feature | Description | Phase | Status |
+|---------|-------------|-------|--------|
+| Daily Token Budget | Configurable daily token budget (`DailyTokenBudget`, default 0 = no limit). Reviews are skipped when the budget is exceeded. | Phase 2 | ✅ Implemented |
+| Monthly Token Budget | Configurable monthly token budget (`MonthlyTokenBudget`, default 0 = no limit). Reviews are skipped when the budget is exceeded. | Phase 2 | ✅ Implemented |
+| Budget Enforcement | `ProductOwnerAgentService` checks token budgets before each polling cycle. Logs a warning and skips the cycle when exceeded. | Phase 2 | ✅ Implemented |
+
 ---
 
 ## 8. Agent API & Human Override
@@ -205,8 +220,9 @@
 | `POST /api/agent/reviews/{id}/override` | Human override — changes the request status and posts a "Manual Override" comment with the overriding user's name and optional reason. | Phase 2 | ✅ Implemented |
 | `GET /api/agent/stats` | Aggregate agent statistics: total reviews, counts by decision, average scores, total tokens used, average response time. | Phase 2 | ✅ Implemented |
 | `GET /api/agent/config` | Returns the current agent configuration (enabled state, polling interval, max reviews, temperature, model name) from config. | Phase 2 | ✅ Implemented |
-| Manual Re-Review Trigger | API endpoint to manually queue a request for re-review. | Phase 2 | 🔲 Planned |
-| Agent Config Update API | `PUT /api/agent/config` to update agent configuration at runtime. | Phase 2 | 🔲 Planned |
+| Manual Re-Review Trigger | `POST /api/agent/reviews/re-review/{requestId}` — resets request to New status with AgentReviewCount=0, posts "Re-review triggered" comment, so the agent picks it up on next polling cycle. | Phase 2 | ✅ Implemented |
+| Agent Config Update API | `PUT /api/agent/config` — accepts partial updates (enabled, polling interval, max reviews, temperature, daily/monthly token budgets). Changes are applied in-memory and persist until app restart. | Phase 2 | ✅ Implemented |
+| Token Budget API | `GET /api/agent/budget` — returns daily/monthly token usage, configured budgets, exceeded flags, and review counts. | Phase 2 | ✅ Implemented |
 
 ---
 
@@ -245,7 +261,9 @@
 | Active/Inactive Toggle | Toggle switch per project to enable or disable it for request submission. | Phase 1 | ✅ Implemented |
 | Project Rename | Rename button with prompt dialog to update the display name. | Phase 1 | ✅ Implemented |
 | Agent Configuration Display | Read-only table showing current agent settings: enabled/disabled badge, model name, polling interval, max reviews per request, and temperature. | Phase 2 | ✅ Implemented |
-| Agent Config Update UI | Editable form for updating agent configuration at runtime. | Phase 2 | 🔲 Planned |
+| Agent Config Update UI | Editable form on Admin Settings page: toggle for enabled/disabled, inputs for polling interval, max reviews, temperature, daily/monthly token budgets, with Save button. Runtime changes persist until API restart. | Phase 2 | ✅ Implemented |
+| Token Budget Dashboard | Admin Settings page shows daily and monthly token usage cards with budget limits, review counts, and exceeded warnings (red border + message). | Phase 2 | ✅ Implemented |
+| Re-Review Button | Button on request detail page (next to override buttons) to queue a fresh agent re-review. Confirmation dialog before triggering. | Phase 2 | ✅ Implemented |
 
 ---
 
@@ -297,14 +315,10 @@
 |---------|-------------|-------|--------|
 | Architect Agent | AI agent that reads the codebase and proposes solutions with impact analysis for approved (Triaged) requests. | Phase 3 | 🔲 Planned |
 | Planning Agent | Creates feature branches, assigns implementation agents, monitors progress, coordinates merges, and triggers batch UAT deployments. | Phase 4 | 🔲 Planned |
-| GitHub Agent Labels | Add `agent:approved`, `agent:rejected`, `agent:needs-info` labels to GitHub Issues based on agent decisions. | Phase 2 | 🔲 Planned |
-| GitHub Agent Comments | Post agent reasoning as comments on GitHub Issues (in addition to in-app comments). | Phase 2 | 🔲 Planned |
 | CI/CD Pipeline | GitHub Actions for automated build, test, and deployment to Azure. | Phase 1 | 🔲 Planned |
 | Azure Deployment | App Service (API) + Static Web Apps (frontend) hosting. | Phase 1 | 🔲 Planned |
 | Role-Based Access Control | Tester vs. admin roles enforced from Entra ID claims. | Phase 1 | 🔲 Planned |
 | README / Documentation | Setup instructions, Entra ID guide, GitHub token guide, local dev, and deployment guide. | Phase 1 | 🔲 Planned |
-| Agent Config Runtime Update | `PUT /api/agent/config` endpoint for live config changes. | Phase 2 | 🔲 Planned |
-| Daily/Monthly Budget Alerting | Token usage alerts based on configurable thresholds. | Phase 2 | 🔲 Planned |
 | SignalR Real-Time Updates | Push-based notifications instead of polling for status changes. | Future | 🔲 Planned |
 | Azure SQL Upgrade | Migration from SQLite to Azure SQL for production scale. | Future | 🔲 Planned |
 
@@ -320,12 +334,12 @@
 | File Attachments | 9 | 0 |
 | GitHub Integration | 8 | 0 |
 | Project Management | 8 | 0 |
-| Product Owner Agent | 28 | 0 |
-| Agent API & Override | 5 | 2 |
-| Agent Review Panel (UI) | 5 | 0 |
+| Product Owner Agent | 33 | 0 |
+| Agent API & Override | 8 | 0 |
+| Agent Review Panel (UI) | 8 | 0 |
 | Dashboard | 7 | 0 |
-| Admin Settings | 5 | 1 |
+| Admin Settings | 7 | 0 |
 | Navigation & UI | 6 | 0 |
 | Infrastructure | 10 | 0 |
-| Future Phases | 0 | 12 |
-| **Total** | **123** | **16** |
+| Future Phases | 0 | 6 |
+| **Total** | **140** | **6** |
