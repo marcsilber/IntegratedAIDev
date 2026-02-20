@@ -29,7 +29,7 @@ A web application backed by an AI-agent pipeline that:
 | **Phase 1** | Structured request intake, tester web app, GitHub Issues sync | 🔨 In Progress |
 | **Phase 2** | Product Owner Agent (triage, clarification, approval) | ⏳ Planned |
 | **Phase 3** | Architect Agent (solution design, impact analysis) | 📄 Designed |
-| **Phase 4** | Planning Agent (branch management, agent assignment, deploy orchestration) | ⏳ Planned |
+| **Phase 4** | Implementation via GitHub Copilot Coding Agent (hybrid approach) | 📄 Designed |
 
 ## 5. Phase 1 Architecture
 
@@ -592,11 +592,14 @@ No breaking changes to existing Phase 1 functionality. The agent is disabled by 
 - New status: `ArchitectReview` (awaiting human decision on proposed solution)
 - See **[Phase3DetailedDesign.md](Phase3DetailedDesign.md)** for the complete detailed design
 
-### Phase 4 — Planning Agent
-- Creates feature branches from approved solutions
-- Triggers implementation agents (via GitHub Actions / API)
-- Monitors PR status and test results
-- Batches merges and triggers UAT deployment
+### Phase 4 — Implementation via GitHub Copilot Coding Agent (Hybrid)
+- After human approves the Architect Agent's solution, the app triggers GitHub's built-in Copilot Coding Agent via REST API
+- Assigns the Issue to `copilot-swe-agent[bot]` with `custom_instructions` containing the approved solution from Phase 3
+- Copilot Coding Agent clones the repo in a secure cloud environment (GitHub Actions), implements the approved solution, runs tests/linters, and opens a PR
+- AIDev monitors the PR via GitHub webhooks/polling, tracks status (`InProgress` → `Done`), and updates the dashboard
+- Human reviews the PR as a final quality gate before merge
+- Eliminates the need to build a custom code-generation agent — leverages GitHub's infrastructure, full codebase access, and built-in test validation
+- See **[Phase4DetailedDesign.md](Phase4DetailedDesign.md)** for the complete detailed design
 
 ## 8. Tech Stack Summary
 

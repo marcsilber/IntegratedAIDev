@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-The Architect Agent is an AI agent that picks up Product-Owner-approved requests (status = `Triaged`) and produces a technical solution proposal. It reads the target repository's codebase via the GitHub API, analyses the request in context, and outputs a structured solution with file-level impact analysis, migration needs, risk assessment, and implementation guidance. The solution is posted for human review; once a human approves it, the request advances to `Approved` and is ready for Phase 4 (Planning Agent).
+The Architect Agent is an AI agent that picks up Product-Owner-approved requests (status = `Triaged`) and produces a technical solution proposal. It reads the target repository's codebase via the GitHub API, analyses the request in context, and outputs a structured solution with file-level impact analysis, migration needs, risk assessment, and implementation guidance. The solution is posted for human review; once a human approves it, the request advances to `Approved` and is ready for Phase 4 (implementation via GitHub Copilot Coding Agent — see [Phase4DetailedDesign.md](Phase4DetailedDesign.md)).
 
 ### 1.1 Goals
 
@@ -16,7 +16,7 @@ The Architect Agent is an AI agent that picks up Product-Owner-approved requests
 
 ### 1.2 Non-Goals (Phase 3)
 
-- The agent does **not** write implementation code (that's Phase 4)
+- The agent does **not** write implementation code (that’s Phase 4 — GitHub Copilot Coding Agent)
 - The agent does **not** create branches or PRs
 - The agent does **not** modify the codebase directly
 
@@ -88,8 +88,8 @@ public enum RequestStatus
     NeedsClarification,   // PO Agent needs more info
     Triaged,              // PO approved → awaiting architecture
     ArchitectReview,      // Architect proposal posted, awaiting human review   ← NEW
-    Approved,             // Human approved architecture → ready for Phase 4
-    InProgress,           // Being implemented (Phase 4)
+    Approved,             // Human approved architecture → ready for Phase 4 (Copilot Coding Agent)
+    InProgress,           // Being implemented (Phase 4 — Copilot Coding Agent)
     Done,                 // Deployed to UAT
     Rejected              // Rejected by PO or human
 }
