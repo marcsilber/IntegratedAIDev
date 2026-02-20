@@ -5,7 +5,7 @@ export const msalConfig = {
   auth: {
     clientId: "16417242-11f1-4548-add4-c631568df68a",
     authority: "https://login.microsoftonline.com/cb7dd1e7-8cf6-40c0-b19c-c8a0ff2adf93",
-    redirectUri: "http://localhost:5173", // Must match App Registration redirect URI
+    redirectUri: window.location.origin, // Auto-detect: works for both localhost and production
   },
   cache: {
     cacheLocation: "sessionStorage" as const,
