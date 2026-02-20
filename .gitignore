@@ -1,0 +1,22 @@
+# .NET
+bin/
+obj/
+*.db
+*.db-shm
+*.db-wal
+*.user
+*.suo
+.vs/
+
+# Node
+node_modules/
+dist/
+
+# Environment files with secrets
+.env.local
+.env.production
+
+# IDE
+.idea/
+*.swp
+*.swo

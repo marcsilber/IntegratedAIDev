@@ -1,0 +1,47 @@
+AI-assisted iterative development — I develop a full-stack web application (React + .NET 8) using VS Code with an AI coding agent (GitHub Copilot) as a pair-programming partner. The AI agent has full workspace access: it reads code, diagnoses bugs, implements fixes across frontend and backend, runs builds and type-checks, and commits directly to Git. I do UAT testing on the deployed app, report issues in plain language, and the agent investigates root causes, writes the fix, and pushes to GitHub — where CI/CD auto-deploys to Azure. This creates a tight feedback loop: test → report → fix → deploy → retest, often completing multiple bug fixes in a single session.
+
+The process is great. I would like to speed it up.
+
+Current bottlenecks.
+When I am testing I am finding bugs or feature requirements faster than a fix can be developed resoved and deployed.
+We are deploying too often we should create a branch for each bug or feature assign an agent to each branch and then merge and deploy together in batches when ready
+In vs code it does not work well to have more than one agent working at a time (that may be a user issue)
+
+Idea
+Create an application where multiple testers can work and record their requests in a structured way
+
+
+The request is then sent to gitub 'Product owner' agent with access to code base
+--Product Owner Agent 
+--Checks the request and posts clarification questions to get more information if required
+--Checks that the request is in line with the objectives of the application (is this in line with what the application was designed to do)
+--Checks if the request is in line with the product sales pack (will it enhance our sales pack)
+--If the product owner approves it is sent to Architect agent to develop a solution
+--Status of request is updated
+The Architect agent then
+--Reviews the request considers the current codebase and recommends a 
+--Solution
+--Impact (what is impact, do we need to fix migrate data etc)
+--Status updated
+--Send for Approval
+Human Review
+--Review suggested solution
+--Ask agent question
+--Agent may make changes as required
+--Human review and architect agree solution
+--Human approves
+Planning Agent 
+--Picks up approved Tasks 
+--Creates a new branch
+--Assigns them to implementation agent
+--Monitors progress
+--Merges Braches
+--triggers deploy to UAT
+--updates status
+
+
+
+Dashboard
+--Request progress
+--UAT Release schedule and progress
+--User activity

@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/AIDev.Api/">
+    <Project Path="src/AIDev.Api/AIDev.Api/AIDev.Api.csproj" />
+  </Folder>
+</Solution>
