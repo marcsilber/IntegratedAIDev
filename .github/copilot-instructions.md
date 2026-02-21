@@ -26,6 +26,10 @@
 - API calls in `src/services/api.ts` using Axios with MSAL interceptor
 - Components in `src/components/`
 - Inline styles (no CSS modules or Tailwind)
+- **ALWAYS-DARK THEME**: The app uses a forced dark theme. All CSS variables are defined in `src/AIDev.Web/src/App.css` `:root`. Do NOT use light-mode defaults or `prefers-color-scheme` media queries.
+- **CSS Variables**: Use `var(--text)` (#E5E7EB), `var(--bg)` (#0B0F14), `var(--surface)` (#13181F), `var(--border)` (#2D3748), `var(--primary)` (#00D1B2), `var(--text-muted)` (#9CA3AF), `var(--danger)` (#ef4444), `var(--success)` (#22c55e), `var(--warning)` (#FFB020). Avoid hardcoded hex colours in inline styles where a variable exists.
+- **CSS Cascade**: `index.css` loads before `App.css`. Do NOT define theme variables (--text, --bg, --border, --shadow) in `index.css` — they belong in `App.css` only.
+- **Text Color**: All text must be readable on dark backgrounds. Default text is silver/light gray. Never use dark text colors (#000, #333, #666, etc.) unless on an explicitly light-colored badge or button.
 
 ## Testing
 - Backend: Run `dotnet build` to verify compilation
@@ -44,3 +48,5 @@
 - Ensure all existing functionality continues to work
 - Write clear, concise commit messages referencing the issue number
 - Add EF Core migrations if data model changes are specified (`dotnet ef migrations add <name>`)
+- When fixing CSS/styling issues: audit ALL stylesheets and ALL components for the same problem pattern, not just the ones explicitly mentioned
+- Identify and fix ROOT CAUSES, not just symptoms. If text is invisible, find out WHY (variable conflict? wrong specificity? missing style?) and fix the source

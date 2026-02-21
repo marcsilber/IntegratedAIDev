@@ -95,6 +95,11 @@ public class ArchitectLlmService : IArchitectLlmService
         - Include configuration files if the change requires new settings
         - Include test files if the change needs new tests
         - Do NOT select binary files, migration files, lock files, or build outputs
+        - For CSS/styling changes: include ALL CSS files (index.css, App.css, etc.) and ALL
+          component files that render the affected UI, not just the "main" stylesheet
+        - For UI issues: include EVERY component that could be affected, even if not
+          explicitly mentioned — thoroughness prevents incomplete fixes
+        - When in doubt, include more files rather than fewer
 
         Return ONLY a JSON array of strings. No markdown, no code fences, no explanation.
         Example: ["src/AIDev.Api/AIDev.Api/Controllers/RequestsController.cs"]
@@ -175,19 +180,35 @@ public class ArchitectLlmService : IArchitectLlmService
         }}
 
         RULES:
-        1. Ground your solution in the ACTUAL codebase you've been given — reference real files, classes, and methods.
-        2. Follow existing patterns (e.g., if the codebase uses controller + service + EF Core, don't propose a different architecture).
-        3. If the request is ambiguous, include clarificationQuestions and set estimatedComplexity to "unknown".
-        4. Be specific about file paths — use the exact paths from the repository map.
-        5. If the request requires frontend + backend changes, cover both.
-        6. Include data migration steps if any database schema changes are needed.
-        7. Identify any breaking changes to existing API contracts.
-        8. IMAGE ATTACHMENTS: If image attachments are provided with the request (e.g. screenshots,
+        1. ROOT CAUSE FIRST: Before proposing any fix, identify and clearly state the ROOT CAUSE
+           of the problem. Do not just treat symptoms. For example, if text is invisible, explain
+           WHY (e.g., CSS variable override, wrong specificity, conflicting stylesheets) — not
+           just "add a class to fix it". The solutionSummary MUST include the root cause.
+        2. Ground your solution in the ACTUAL codebase you've been given — reference real files,
+           classes, methods, and line numbers. Quote the specific code that causes the issue.
+        3. Follow existing patterns (e.g., if the codebase uses controller + service + EF Core,
+           don't propose a different architecture).
+        4. If the request is ambiguous, include clarificationQuestions and set estimatedComplexity to "unknown".
+        5. Be specific about file paths — use the exact paths from the repository map.
+        6. If the request requires frontend + backend changes, cover both.
+        7. Include data migration steps if any database schema changes are needed.
+        8. Identify any breaking changes to existing API contracts.
+        9. IMAGE ATTACHMENTS: If image attachments are provided with the request (e.g. screenshots,
            mockups, diagrams, error screenshots), carefully examine them and incorporate what you see
            into your solution. Describe any relevant visual elements, UI layouts, error messages,
            or design details in your "approach" and "solutionSummary" fields so that the implementation
            agent (which cannot see the images) has full context to work from. Be specific — mention
            colours, layouts, component placement, text content, error messages, etc.
+        10. COMPLETENESS: List ALL files that need changes, not just the primary ones.
+            For CSS/styling: check every stylesheet and component file for hardcoded colours,
+            conflicting variable definitions, specificity issues, and inline styles.
+            The implementation agent will ONLY modify files you list — anything you miss stays broken.
+        11. APPROACH DETAIL: The "approach" field should contain enough detail that a developer
+            (or AI coding agent) can implement the fix without needing to re-investigate.
+            Include specific CSS selectors, variable names, line numbers, and exact values.
+        12. The impactedFiles "description" field should say EXACTLY what change is needed in that
+            file — not vague descriptions like "update styles" but specific ones like
+            "Remove conflicting --text variable definition on line 2 that overrides App.css".
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
