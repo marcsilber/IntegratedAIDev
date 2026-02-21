@@ -80,8 +80,16 @@ public class AgentController : ControllerBase
 
         var request = review.DevRequest!;
 
+        // When overriding a PO review to "Approved", set status to "Triaged"
+        // so the Architect Agent reviews it next (don't skip architect review).
+        var effectiveStatus = dto.NewStatus;
+        if (review.AgentType == "ProductOwner" && dto.NewStatus == RequestStatus.Approved)
+        {
+            effectiveStatus = RequestStatus.Triaged;
+        }
+
         // Update request status
-        request.Status = dto.NewStatus;
+        request.Status = effectiveStatus;
         request.UpdatedAt = DateTime.UtcNow;
 
         // Add a human override comment
@@ -90,7 +98,8 @@ public class AgentController : ControllerBase
         {
             DevRequestId = request.Id,
             Author = author,
-            Content = $"**Manual Override** — Agent decision ({review.Decision}) overridden to **{dto.NewStatus}**." +
+            Content = $"**Manual Override** — Agent decision ({review.Decision}) overridden to **{effectiveStatus}**." +
+                     (effectiveStatus != dto.NewStatus ? $" (mapped from {dto.NewStatus} to ensure architect review)" : "") +
                      (string.IsNullOrWhiteSpace(dto.Reason) ? "" : $"\nReason: {dto.Reason}"),
             IsAgentComment = false,
             CreatedAt = DateTime.UtcNow
@@ -99,8 +108,8 @@ public class AgentController : ControllerBase
         _db.RequestComments.Add(comment);
         await _db.SaveChangesAsync();
 
-        _logger.LogInformation("Agent review #{ReviewId} overridden by {User}: {OldDecision} → {NewStatus}",
-            id, author, review.Decision, dto.NewStatus);
+        _logger.LogInformation("Agent review #{ReviewId} overridden by {User}: {OldDecision} → {EffectiveStatus} (requested: {NewStatus})",
+            id, author, review.Decision, effectiveStatus, dto.NewStatus);
 
         return Ok(MapToDto(review));
     }
