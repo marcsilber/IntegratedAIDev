@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   createRequest,
@@ -23,6 +23,8 @@ export default function RequestForm() {
   const [error, setError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [form, setForm] = useState<CreateRequest>({
     projectId: 0,
@@ -53,7 +55,7 @@ export default function RequestForm() {
     setError(null);
 
     try {
-      const created = await createRequest(form);
+      const created = await createRequest(form, attachments.length > 0 ? attachments : undefined);
       navigate(`/requests/${created.id}`);
     } catch (err: unknown) {
       const message =
@@ -206,6 +208,49 @@ export default function RequestForm() {
             </div>
           </>
         )}
+
+        <div className="form-group">
+          <label>Attachments</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf,.txt,.doc,.docx"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const selected = Array.from(e.target.files ?? []);
+              setAttachments((prev) => {
+                const existing = new Set(prev.map((f) => f.name));
+                return [...prev, ...selected.filter((f) => !existing.has(f.name))];
+              });
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Add Files
+          </button>
+          {attachments.length > 0 && (
+            <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
+              {attachments.map((f, i) => (
+                <li key={`${f.name}-${f.size}-${f.lastModified}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                  <span>{f.name} ({(f.size / 1024).toFixed(1)} KB)</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    style={{ padding: "2px 8px", fontSize: "0.8em" }}
+                    onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
 
         <div className="form-actions">
           <button type="submit" className="btn btn-primary" disabled={loading}>

@@ -221,9 +221,22 @@ export async function getRequest(id: number): Promise<DevRequest> {
 }
 
 export async function createRequest(
-  request: CreateRequest
+  request: CreateRequest,
+  files?: File[]
 ): Promise<DevRequest> {
-  const { data } = await api.post("/requests", request);
+  const formData = new FormData();
+  formData.append("projectId", String(request.projectId));
+  formData.append("title", request.title);
+  formData.append("description", request.description);
+  formData.append("requestType", request.requestType);
+  formData.append("priority", request.priority);
+  if (request.stepsToReproduce) formData.append("stepsToReproduce", request.stepsToReproduce);
+  if (request.expectedBehavior) formData.append("expectedBehavior", request.expectedBehavior);
+  if (request.actualBehavior) formData.append("actualBehavior", request.actualBehavior);
+  if (files) files.forEach((f) => formData.append("files", f));
+  const { data } = await api.post("/requests", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
   return data;
 }
 

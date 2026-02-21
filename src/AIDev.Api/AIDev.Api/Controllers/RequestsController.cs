@@ -81,10 +81,11 @@ public class RequestsController : ControllerBase
     }
 
     /// <summary>
-    /// Create a new request.
+    /// Create a new request, optionally with file attachments.
     /// </summary>
     [HttpPost]
-    public async Task<ActionResult<RequestResponseDto>> Create([FromBody] CreateRequestDto dto)
+    [RequestSizeLimit(10 * 1024 * 1024)] // 10 MB per request
+    public async Task<ActionResult<RequestResponseDto>> Create([FromForm] CreateRequestDto dto, [FromForm] List<IFormFile>? files = null)
     {
         if (!ModelState.IsValid)
             return BadRequest(ModelState);
@@ -120,6 +121,46 @@ public class RequestsController : ControllerBase
         _db.DevRequests.Add(request);
         await _db.SaveChangesAsync();
 
+        // Save any attachments provided at creation time
+        if (files != null && files.Count > 0)
+        {
+            // Validate all files before saving any to avoid partial uploads
+            foreach (var file in files)
+            {
+                if (file.Length == 0) continue;
+                if (file.Length > 5 * 1024 * 1024) // 5 MB per file
+                    return BadRequest($"A file exceeds the 5 MB limit.");
+            }
+
+            var uploadsRoot = Path.Combine(Directory.GetCurrentDirectory(), "uploads");
+            Directory.CreateDirectory(uploadsRoot);
+
+            foreach (var file in files)
+            {
+                if (file.Length == 0) continue;
+
+                var storedName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+                var storedPath = Path.Combine("uploads", storedName);
+                var fullPath = Path.Combine(uploadsRoot, storedName);
+
+                await using var stream = new FileStream(fullPath, FileMode.Create);
+                await file.CopyToAsync(stream);
+
+                _db.Attachments.Add(new Attachment
+                {
+                    DevRequestId = request.Id,
+                    FileName = file.FileName,
+                    ContentType = file.ContentType,
+                    FileSizeBytes = file.Length,
+                    StoredPath = storedPath,
+                    UploadedBy = userName,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+
+            await _db.SaveChangesAsync();
+        }
+
         // Sync to GitHub Issues (non-blocking failure — request still saved)
         try
         {
@@ -135,6 +176,9 @@ public class RequestsController : ControllerBase
         {
             _logger.LogError(ex, "GitHub Issue creation failed for request {RequestId}, continuing without sync.", request.Id);
         }
+
+        // Reload with attachments for response
+        await _db.Entry(request).Collection(r => r.Attachments).LoadAsync();
 
         return CreatedAtAction(nameof(GetById), new { id = request.Id }, MapToDto(request));
     }
