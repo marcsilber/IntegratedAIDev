@@ -189,7 +189,11 @@ public class ArchitectLlmService : IArchitectLlmService
         3. Follow existing patterns (e.g., if the codebase uses controller + service + EF Core,
            don't propose a different architecture).
         4. If the request is ambiguous, include clarificationQuestions and set estimatedComplexity to "unknown".
-        5. Be specific about file paths — use the exact paths from the repository map.
+        5. FILE PATHS MUST BE EXACT: Use the full path from the repository root, e.g.
+           "src/AIDev.Api/AIDev.Api/Controllers/RequestsController.cs" not just "RequestsController.cs".
+           The implementation agent relies entirely on the paths you provide. Wrong or partial
+           paths will cause the implementation to fail. Double-check every path against the
+           repository file tree provided above.
         6. If the request requires frontend + backend changes, cover both.
         7. Include data migration steps if any database schema changes are needed.
         8. Identify any breaking changes to existing API contracts.

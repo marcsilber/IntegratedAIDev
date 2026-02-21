@@ -236,6 +236,91 @@ public class ImplementationTriggerService : BackgroundService
     {
         var sb = new StringBuilder();
 
+        // ── Hardcoded project structure ────────────────────────────
+        // Copilot needs an exact map of the repo so it never has to guess file locations.
+        sb.AppendLine("## Project Structure (exact paths)");
+        sb.AppendLine();
+        sb.AppendLine("```");
+        sb.AppendLine("Repository root");
+        sb.AppendLine("├── src/AIDev.Api/AIDev.Api/              # .NET 10 Web API (backend)");
+        sb.AppendLine("│   ├── Controllers/                      # API controllers");
+        sb.AppendLine("│   │   ├── AdminController.cs");
+        sb.AppendLine("│   │   ├── AgentController.cs");
+        sb.AppendLine("│   │   ├── ArchitectController.cs");
+        sb.AppendLine("│   │   ├── DashboardController.cs");
+        sb.AppendLine("│   │   ├── ImplementationController.cs");
+        sb.AppendLine("│   │   ├── OrchestratorController.cs");
+        sb.AppendLine("│   │   ├── ProjectsController.cs");
+        sb.AppendLine("│   │   └── RequestsController.cs");
+        sb.AppendLine("│   ├── Services/                         # Business logic services");
+        sb.AppendLine("│   │   ├── ArchitectAgentService.cs");
+        sb.AppendLine("│   │   ├── ArchitectLlmService.cs");
+        sb.AppendLine("│   │   ├── CodebaseService.cs");
+        sb.AppendLine("│   │   ├── CodeReviewAgentService.cs");
+        sb.AppendLine("│   │   ├── CodeReviewLlmService.cs");
+        sb.AppendLine("│   │   ├── GitHubService.cs");
+        sb.AppendLine("│   │   ├── ImplementationTriggerService.cs");
+        sb.AppendLine("│   │   ├── LlmClientFactory.cs");
+        sb.AppendLine("│   │   ├── LlmService.cs");
+        sb.AppendLine("│   │   ├── PipelineOrchestratorService.cs");
+        sb.AppendLine("│   │   ├── PrMonitorService.cs");
+        sb.AppendLine("│   │   ├── ProductOwnerAgentService.cs");
+        sb.AppendLine("│   │   └── ReferenceDocumentService.cs");
+        sb.AppendLine("│   ├── Models/                           # Entity models & enums");
+        sb.AppendLine("│   │   ├── DevRequest.cs");
+        sb.AppendLine("│   │   ├── Project.cs");
+        sb.AppendLine("│   │   ├── AgentReview.cs");
+        sb.AppendLine("│   │   ├── ArchitectReview.cs");
+        sb.AppendLine("│   │   ├── Attachment.cs");
+        sb.AppendLine("│   │   ├── CodeReview.cs");
+        sb.AppendLine("│   │   ├── RequestComment.cs");
+        sb.AppendLine("│   │   ├── Enums.cs");
+        sb.AppendLine("│   │   └── DTOs/RequestDtos.cs           # All DTO record types");
+        sb.AppendLine("│   ├── Data/AppDbContext.cs               # EF Core DbContext");
+        sb.AppendLine("│   ├── Migrations/                       # EF Core migrations (auto-generated)");
+        sb.AppendLine("│   ├── Program.cs                        # DI registration & app startup");
+        sb.AppendLine("│   ├── appsettings.json                  # Local config");
+        sb.AppendLine("│   └── deploy/appsettings.json           # Production config overrides");
+        sb.AppendLine("│");
+        sb.AppendLine("├── src/AIDev.Web/                        # React 19 + TypeScript + Vite 7 (frontend)");
+        sb.AppendLine("│   └── src/");
+        sb.AppendLine("│       ├── App.tsx                       # Root component, routing, navbar");
+        sb.AppendLine("│       ├── App.css                       # Global CSS — ALWAYS-DARK THEME variables");
+        sb.AppendLine("│       ├── index.css                     # Base CSS reset (NO theme variables here)");
+        sb.AppendLine("│       ├── main.tsx                      # React entry point");
+        sb.AppendLine("│       ├── components/                   # Feature components");
+        sb.AppendLine("│       │   ├── AdminSettings.tsx");
+        sb.AppendLine("│       │   ├── ArchitectReviewPanel.tsx");
+        sb.AppendLine("│       │   ├── Dashboard.tsx");
+        sb.AppendLine("│       │   ├── ImplementationPanel.tsx");
+        sb.AppendLine("│       │   ├── PipelineHealthPanel.tsx");
+        sb.AppendLine("│       │   ├── RequestDetail.tsx");
+        sb.AppendLine("│       │   ├── RequestForm.tsx");
+        sb.AppendLine("│       │   └── RequestList.tsx");
+        sb.AppendLine("│       ├── services/api.ts               # ALL API calls (Axios + MSAL)");
+        sb.AppendLine("│       ├── auth/                         # MSAL auth config");
+        sb.AppendLine("│       └── assets/                       # Static assets (images, logos)");
+        sb.AppendLine("│           ├── hero.png                  # App logo");
+        sb.AppendLine("│           ├── react.svg");
+        sb.AppendLine("│           └── vite.svg");
+        sb.AppendLine("│");
+        sb.AppendLine("└── .github/");
+        sb.AppendLine("    ├── copilot-instructions.md           # Coding conventions");
+        sb.AppendLine("    └── workflows/");
+        sb.AppendLine("        ├── deploy-api.yml                # API deployment (Azure App Service)");
+        sb.AppendLine("        └── deploy-web.yml                # Web deployment (Azure Static Web Apps)");
+        sb.AppendLine("```");
+        sb.AppendLine();
+        sb.AppendLine("### Key conventions");
+        sb.AppendLine("- **Dark theme only** — CSS variables in `src/AIDev.Web/src/App.css` `:root`. Use `var(--text)`, `var(--bg)`, `var(--surface)`, `var(--border)`, `var(--primary)`. Never use light backgrounds or dark text colours.");
+        sb.AppendLine("- **Inline styles** — no CSS modules or Tailwind. Components use inline `style` props.");
+        sb.AppendLine("- **Backend pattern**: Controller → Service → EF Core (`AppDbContext`). Use `record` types for DTOs.");
+        sb.AppendLine("- **Frontend pattern**: Functional components with TypeScript interfaces. All API calls in `services/api.ts`.");
+        sb.AppendLine("- **Nullable reference types** enabled. Add XML doc comments on public members.");
+        sb.AppendLine("- **Database**: SQLite via EF Core. Add a migration with `dotnet ef migrations add <Name>` if schema changes.");
+        sb.AppendLine();
+
+        // ── Approved solution from architect ──────────────────────
         sb.AppendLine("## Approved Solution");
         sb.AppendLine();
         sb.AppendLine($"**Approach:** {review.SolutionSummary}");
@@ -345,8 +430,10 @@ public class ImplementationTriggerService : BackgroundService
         }
 
         sb.AppendLine("## Important");
+        sb.AppendLine("- **File paths above are EXACT** — use them verbatim. Do not guess or shorten paths.");
         sb.AppendLine("- Follow existing code patterns and conventions in the repository");
-        sb.AppendLine("- Run all existing tests and ensure they pass");
+        sb.AppendLine("- Run `dotnet build` in `src/AIDev.Api/AIDev.Api/` to verify backend compilation");
+        sb.AppendLine("- Run `npx tsc --noEmit` in `src/AIDev.Web/` to verify frontend TypeScript compilation");
         sb.AppendLine("- Add tests for new functionality");
         sb.AppendLine("- Do not modify files outside the scope listed above unless absolutely necessary");
         sb.AppendLine("- Use nullable reference types");
