@@ -104,6 +104,11 @@ public class LlmService : ILlmService
         - REJECT if alignment < 30: The request is clearly out of scope or contradicts product direction.
         - When in doubt between approve and clarify, prefer clarify.
         
+        IMAGE ATTACHMENTS: If image attachments are provided (e.g. screenshots, mockups, error
+        screenshots), examine them carefully and reference what you see in your reasoning. For
+        example, if a screenshot shows a UI bug or a mockup of a desired layout, mention the
+        specific details you observe. This helps downstream agents that cannot see the images.
+        
         You MUST respond with valid JSON only. No markdown, no code fences, no explanation outside the JSON.
         
         JSON SCHEMA:

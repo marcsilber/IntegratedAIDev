@@ -182,6 +182,12 @@ public class ArchitectLlmService : IArchitectLlmService
         5. If the request requires frontend + backend changes, cover both.
         6. Include data migration steps if any database schema changes are needed.
         7. Identify any breaking changes to existing API contracts.
+        8. IMAGE ATTACHMENTS: If image attachments are provided with the request (e.g. screenshots,
+           mockups, diagrams, error screenshots), carefully examine them and incorporate what you see
+           into your solution. Describe any relevant visual elements, UI layouts, error messages,
+           or design details in your "approach" and "solutionSummary" fields so that the implementation
+           agent (which cannot see the images) has full context to work from. Be specific — mention
+           colours, layouts, component placement, text content, error messages, etc.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
