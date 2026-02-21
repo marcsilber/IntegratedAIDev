@@ -267,22 +267,26 @@ export default function RequestDetail() {
         </div>
 
         <div className="detail-info">
-          <p>
-            <strong>Project:</strong>{" "}
-            <span className="badge badge-project">{request.projectName}</span>
-          </p>
-          <p>
-            <strong>Submitted by:</strong> {request.submittedBy} (
-            {request.submittedByEmail})
-          </p>
-          <p>
-            <strong>Created:</strong>{" "}
-            {new Date(request.createdAt).toLocaleString()}
-          </p>
-          <p>
-            <strong>Updated:</strong>{" "}
-            {new Date(request.updatedAt).toLocaleString()}
-          </p>
+          <table className="detail-info-table">
+            <tbody>
+              <tr>
+                <td>Project:</td>
+                <td><span className="badge badge-project">{request.projectName}</span></td>
+              </tr>
+              <tr>
+                <td>Submitted by:</td>
+                <td>{request.submittedBy} ({request.submittedByEmail})</td>
+              </tr>
+              <tr>
+                <td>Created:</td>
+                <td>{new Date(request.createdAt).toLocaleString()}</td>
+              </tr>
+              <tr>
+                <td>Updated:</td>
+                <td>{new Date(request.updatedAt).toLocaleString()}</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div className="detail-section">
