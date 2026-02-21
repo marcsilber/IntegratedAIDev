@@ -38,6 +38,12 @@ public interface IGitHubService
     Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber);
     /// <summary>Check how many commits the PR branch is behind the base branch.</summary>
     Task<int> GetBehindByCountAsync(string owner, string repo, string baseBranch, string headBranch);
+    /// <summary>Create a new branch from a base branch SHA.</summary>
+    Task<string?> CreateBranchAsync(string owner, string repo, string branchName, string baseBranch = "main");
+    /// <summary>Commit one or more files to a branch using the Git Data API (create blob → create tree → create commit → update ref).</summary>
+    Task<bool> CommitFilesAsync(string owner, string repo, string branch, Dictionary<string, byte[]> files, string commitMessage);
+    /// <summary>Remove files matching a path prefix from a branch (e.g., _temp-attachments/).</summary>
+    Task<bool> RemoveFilesFromBranchAsync(string owner, string repo, string branch, string pathPrefix, string commitMessage);
 }
 
 public class GitHubService : IGitHubService
@@ -570,6 +576,136 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task<string?> CreateBranchAsync(string owner, string repo, string branchName, string baseBranch = "main")
+    {
+        try
+        {
+            // Get the SHA of the base branch
+            var baseRef = await _client.Git.Reference.Get(owner, repo, $"heads/{baseBranch}");
+            var baseSha = baseRef.Object.Sha;
+
+            // Create the new branch ref
+            var newRef = await _client.Git.Reference.Create(owner, repo,
+                new NewReference($"refs/heads/{branchName}", baseSha));
+
+            _logger.LogInformation("Created branch '{Branch}' from {Base} (SHA: {Sha}) in {Owner}/{Repo}",
+                branchName, baseBranch, baseSha[..8], owner, repo);
+            return newRef.Object.Sha;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create branch '{Branch}' in {Owner}/{Repo}", branchName, owner, repo);
+            return null;
+        }
+    }
+
+    public async Task<bool> CommitFilesAsync(string owner, string repo, string branch, Dictionary<string, byte[]> files, string commitMessage)
+    {
+        try
+        {
+            // 1. Get the current commit SHA for the branch
+            var branchRef = await _client.Git.Reference.Get(owner, repo, $"heads/{branch}");
+            var latestCommitSha = branchRef.Object.Sha;
+            var latestCommit = await _client.Git.Commit.Get(owner, repo, latestCommitSha);
+            var baseTreeSha = latestCommit.Tree.Sha;
+
+            // 2. Create blobs for each file
+            var treeItems = new List<NewTreeItem>();
+            foreach (var (path, content) in files)
+            {
+                var blob = await _client.Git.Blob.Create(owner, repo, new NewBlob
+                {
+                    Content = Convert.ToBase64String(content),
+                    Encoding = EncodingType.Base64
+                });
+
+                treeItems.Add(new NewTreeItem
+                {
+                    Path = path,
+                    Mode = "100644",
+                    Type = TreeType.Blob,
+                    Sha = blob.Sha
+                });
+            }
+
+            // 3. Create a new tree with the files
+            var newTree = new NewTree { BaseTree = baseTreeSha };
+            foreach (var item in treeItems)
+            {
+                newTree.Tree.Add(item);
+            }
+            var tree = await _client.Git.Tree.Create(owner, repo, newTree);
+
+            // 4. Create a new commit
+            var newCommit = new NewCommit(commitMessage, tree.Sha, latestCommitSha);
+            var commit = await _client.Git.Commit.Create(owner, repo, newCommit);
+
+            // 5. Update the branch ref to point to the new commit
+            await _client.Git.Reference.Update(owner, repo, $"heads/{branch}",
+                new ReferenceUpdate(commit.Sha));
+
+            _logger.LogInformation("Committed {Count} file(s) to branch '{Branch}' in {Owner}/{Repo}: {Message}",
+                files.Count, branch, owner, repo, commitMessage);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to commit files to branch '{Branch}' in {Owner}/{Repo}", branch, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<bool> RemoveFilesFromBranchAsync(string owner, string repo, string branch, string pathPrefix, string commitMessage)
+    {
+        try
+        {
+            // Get the tree for the branch to find files matching the prefix
+            var branchRef = await _client.Git.Reference.Get(owner, repo, $"heads/{branch}");
+            var latestCommitSha = branchRef.Object.Sha;
+            var latestCommit = await _client.Git.Commit.Get(owner, repo, latestCommitSha);
+
+            var fullTree = await _client.Git.Tree.GetRecursive(owner, repo, latestCommit.Tree.Sha);
+            var matchingFiles = fullTree.Tree
+                .Where(t => t.Type == TreeType.Blob && t.Path.StartsWith(pathPrefix, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            if (matchingFiles.Count == 0)
+            {
+                _logger.LogDebug("No files matching prefix '{Prefix}' found on branch '{Branch}'", pathPrefix, branch);
+                return true; // Nothing to remove
+            }
+
+            // Create a new tree that excludes the matching files (set SHA to null to delete)
+            var newTree = new NewTree { BaseTree = latestCommit.Tree.Sha };
+            foreach (var file in matchingFiles)
+            {
+                newTree.Tree.Add(new NewTreeItem
+                {
+                    Path = file.Path,
+                    Mode = "100644",
+                    Type = TreeType.Blob,
+                    Sha = null // null SHA = delete file
+                });
+            }
+            var tree = await _client.Git.Tree.Create(owner, repo, newTree);
+
+            // Create commit and update ref
+            var newCommit = new NewCommit(commitMessage, tree.Sha, latestCommitSha);
+            var commit = await _client.Git.Commit.Create(owner, repo, newCommit);
+            await _client.Git.Reference.Update(owner, repo, $"heads/{branch}",
+                new ReferenceUpdate(commit.Sha));
+
+            _logger.LogInformation("Removed {Count} temp file(s) from branch '{Branch}' in {Owner}/{Repo}",
+                matchingFiles.Count, branch, owner, repo);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to remove files from branch '{Branch}' in {Owner}/{Repo}", branch, owner, repo);
+            return false;
+        }
+    }
+
     public async Task<bool> MergePullRequestAsync(string owner, string repo, int prNumber, string commitMessage)
     {
         try
@@ -789,5 +925,23 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping branch comparison.");
         return Task.FromResult(0);
+    }
+
+    public Task<string?> CreateBranchAsync(string owner, string repo, string branchName, string baseBranch = "main")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping branch creation.");
+        return Task.FromResult<string?>(null);
+    }
+
+    public Task<bool> CommitFilesAsync(string owner, string repo, string branch, Dictionary<string, byte[]> files, string commitMessage)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping file commit.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> RemoveFilesFromBranchAsync(string owner, string repo, string branch, string pathPrefix, string commitMessage)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping file removal.");
+        return Task.FromResult(false);
     }
 }

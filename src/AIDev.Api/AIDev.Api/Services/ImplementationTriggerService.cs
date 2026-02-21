@@ -94,6 +94,7 @@ public class ImplementationTriggerService : BackgroundService
         var candidates = await db.DevRequests
             .Include(r => r.ArchitectReviews)
             .Include(r => r.Project)
+            .Include(r => r.Attachments)
             .Where(r => r.Status == RequestStatus.Approved
                      && r.CopilotSessionId == null
                      && r.GitHubIssueNumber != null)
@@ -141,13 +142,74 @@ public class ImplementationTriggerService : BackgroundService
         // Build custom instructions from the architect's approved solution
         var instructions = BuildCustomInstructions(approvedReview);
 
+        // Stage image attachments to a prep branch so the Copilot agent can access them
+        var effectiveBaseBranch = BaseBranch;
+        var hasAttachments = request.Attachments?.Any(a => IsImageAttachment(a)) == true;
+        if (hasAttachments)
+        {
+            var prepBranch = $"attachments/request-{request.Id}";
+            var branchSha = await _gitHubService.CreateBranchAsync(owner, repo, prepBranch, BaseBranch);
+            if (branchSha != null)
+            {
+                var files = new Dictionary<string, byte[]>();
+                foreach (var attachment in request.Attachments!.Where(a => IsImageAttachment(a)))
+                {
+                    var fullPath = Path.Combine(Directory.GetCurrentDirectory(), attachment.StoredPath);
+                    if (File.Exists(fullPath))
+                    {
+                        var fileBytes = await File.ReadAllBytesAsync(fullPath, ct);
+                        var repoPath = $"_temp-attachments/{request.Id}/{attachment.FileName}";
+                        files[repoPath] = fileBytes;
+                        _logger.LogInformation(
+                            "Staging attachment '{FileName}' ({Size} bytes) for request #{Id}",
+                            attachment.FileName, fileBytes.Length, request.Id);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("Attachment file not found on disk: {Path}", fullPath);
+                    }
+                }
+
+                if (files.Count > 0)
+                {
+                    var committed = await _gitHubService.CommitFilesAsync(
+                        owner, repo, prepBranch, files,
+                        $"Stage {files.Count} attachment(s) for request #{request.Id}");
+
+                    if (committed)
+                    {
+                        effectiveBaseBranch = prepBranch;
+                        instructions += BuildAttachmentInstructions(request.Attachments!, request.Id);
+                        _logger.LogInformation(
+                            "Staged {Count} attachment(s) on branch '{Branch}' for request #{Id}",
+                            files.Count, prepBranch, request.Id);
+                    }
+                    else
+                    {
+                        // Clean up the empty prep branch on failure
+                        await _gitHubService.DeleteBranchAsync(owner, repo, prepBranch);
+                        _logger.LogWarning("Failed to commit attachments — falling back to {Base}", BaseBranch);
+                    }
+                }
+                else
+                {
+                    // No files actually read — clean up empty branch
+                    await _gitHubService.DeleteBranchAsync(owner, repo, prepBranch);
+                }
+            }
+            else
+            {
+                _logger.LogWarning("Failed to create prep branch for attachments — falling back to {Base}", BaseBranch);
+            }
+        }
+
         _logger.LogInformation(
             "Triggering Copilot for request #{Id} (Issue #{Issue}) — {Summary}",
             request.Id, request.GitHubIssueNumber, approvedReview.SolutionSummary);
 
         // Assign the issue to copilot-swe-agent[bot]
         await _gitHubService.AssignCopilotAgentAsync(
-            owner, repo, request.GitHubIssueNumber!.Value, instructions, BaseBranch, Model);
+            owner, repo, request.GitHubIssueNumber!.Value, instructions, effectiveBaseBranch, Model);
 
         // Update request state
         request.Status = RequestStatus.InProgress;
@@ -291,7 +353,36 @@ public class ImplementationTriggerService : BackgroundService
         sb.AppendLine("- Follow existing controller/service patterns");
         sb.AppendLine("- Add XML doc comments on public members");
         sb.AppendLine("- Use record types for DTOs");
+        sb.AppendLine("- If a `_temp-attachments/` folder exists in the repo, clean it up: move needed assets to their final location and delete the temp folder");
 
         return sb.ToString();
+    }
+
+    private static string BuildAttachmentInstructions(ICollection<Attachment> attachments, int requestId)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine();
+        sb.AppendLine("## Image Attachments");
+        sb.AppendLine();
+        sb.AppendLine($"Image files for this request have been placed in `_temp-attachments/{requestId}/` in the repository.");
+        sb.AppendLine("These are the actual image assets needed for the implementation.");
+        sb.AppendLine();
+        sb.AppendLine("**Files available:**");
+        foreach (var attachment in attachments.Where(a => IsImageAttachment(a)))
+        {
+            sb.AppendLine($"- `_temp-attachments/{requestId}/{attachment.FileName}` ({attachment.ContentType}, {attachment.FileSizeBytes:N0} bytes)");
+        }
+        sb.AppendLine();
+        sb.AppendLine("**Instructions:**");
+        sb.AppendLine("1. If an image should be part of the project (logo, icon, asset), **copy or move** it to the correct location (e.g., `src/AIDev.Web/public/` or `src/AIDev.Web/src/assets/`)");
+        sb.AppendLine("2. Update any code references to point to the new file location");
+        sb.AppendLine($"3. **Delete the `_temp-attachments/` folder** when done — it must not remain in the final PR");
+        sb.AppendLine();
+        return sb.ToString();
+    }
+
+    private static bool IsImageAttachment(Attachment attachment)
+    {
+        return attachment.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase);
     }
 }
