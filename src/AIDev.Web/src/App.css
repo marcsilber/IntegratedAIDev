@@ -195,6 +195,7 @@ body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   max-width: 800px;
+  text-align: left;
 }
 
 .form-group {
@@ -365,11 +366,30 @@ tr:hover {
   padding: 1rem;
   background: var(--bg);
   border-radius: var(--radius);
+  text-align: left;
 }
 
-.detail-info p {
-  margin-bottom: 0.25rem;
+.detail-info-table {
+  width: 100%;
+  border-collapse: collapse;
   font-size: 0.9rem;
+}
+
+.detail-info-table td {
+  padding: 0.3rem 0.75rem 0.3rem 0;
+  border-bottom: none;
+  vertical-align: top;
+}
+
+.detail-info-table td:first-child {
+  font-weight: 600;
+  white-space: nowrap;
+  width: 160px;
+  color: var(--text);
+}
+
+.detail-info-table tr:last-child td {
+  padding-bottom: 0;
 }
 
 .detail-section {
