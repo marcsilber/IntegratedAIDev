@@ -73,9 +73,18 @@ public class PrMonitorService : BackgroundService
                      && r.CopilotStatus != CopilotImplementationStatus.Failed)
             .ToListAsync(ct);
 
-        if (inProgressRequests.Count == 0) return;
+        if (inProgressRequests.Count == 0)
+        {
+            _logger.LogDebug("PrMonitor: No in-progress Copilot sessions found");
+            return;
+        }
 
-        _logger.LogDebug("Monitoring {Count} in-progress Copilot session(s)", inProgressRequests.Count);
+        _logger.LogInformation("PrMonitor: Monitoring {Count} in-progress Copilot session(s)", inProgressRequests.Count);
+        foreach (var req in inProgressRequests)
+        {
+            _logger.LogInformation("PrMonitor: Request #{Id} — IssueNumber={Issue}, CopilotStatus={Status}, CopilotPrNumber={Pr}, SessionId={Sid}",
+                req.Id, req.GitHubIssueNumber, req.CopilotStatus, req.CopilotPrNumber, req.CopilotSessionId);
+        }
 
         foreach (var request in inProgressRequests)
         {

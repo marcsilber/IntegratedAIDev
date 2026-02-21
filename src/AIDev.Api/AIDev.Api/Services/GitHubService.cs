@@ -17,7 +17,7 @@ public interface IGitHubService
     Task<Octokit.TreeResponse> GetTreeRecursiveAsync(string owner, string repo, string branch = "main");
     Task<string?> GetFileContentAsync(string owner, string repo, string path, string branch = "main");
     Task AssignCopilotAgentAsync(string owner, string repo, int issueNumber, string customInstructions, string baseBranch = "main", string model = "");
-    Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]");
+    Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "Copilot");
     Task<PullRequest?> GetPullRequestAsync(string owner, string repo, int prNumber);
     Task RemoveLabelAsync(string owner, string repo, int issueNumber, string label);
     /// <summary>Delete a branch (typically after PR merge).</summary>
@@ -279,23 +279,50 @@ public class GitHubService : IGitHubService
         }
     }
 
-    public async Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]")
+    public async Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "Copilot")
     {
         try
         {
             var prs = await _client.PullRequest.GetAllForRepository(owner, repo,
-                new PullRequestRequest { State = ItemStateFilter.All });
+                new PullRequestRequest { State = ItemStateFilter.Open });
 
-            // Find PRs by the Copilot bot that reference this issue
+            _logger.LogInformation("FindPR: Found {Count} open PRs in {Owner}/{Repo}. Looking for issue #{IssueNumber} by author '{Author}'",
+                prs.Count, owner, repo, issueNumber, author);
+
+            // Primary match: author + issue reference in body/title
             var match = prs.FirstOrDefault(pr =>
                 pr.User.Login.Equals(author, StringComparison.OrdinalIgnoreCase)
                 && (pr.Body?.Contains($"#{issueNumber}") == true
                     || pr.Title?.Contains($"#{issueNumber}") == true));
 
+            // Fallback: match by copilot branch prefix + issue reference (author name may change)
+            if (match == null)
+            {
+                match = prs.FirstOrDefault(pr =>
+                    (pr.Head?.Ref?.StartsWith("copilot/", StringComparison.OrdinalIgnoreCase) == true)
+                    && (pr.Body?.Contains($"#{issueNumber}") == true
+                        || pr.Title?.Contains($"#{issueNumber}") == true));
+
+                if (match != null)
+                {
+                    _logger.LogInformation("FindPR: Matched PR #{PrNumber} via copilot branch fallback (author='{ActualAuthor}', branch='{Branch}')",
+                        match.Number, match.User.Login, match.Head?.Ref);
+                }
+            }
+
             if (match != null)
             {
                 _logger.LogInformation("Found PR #{PrNumber} by {Author} for Issue #{IssueNumber}",
-                    match.Number, author, issueNumber);
+                    match.Number, match.User.Login, issueNumber);
+            }
+            else
+            {
+                // Log available PRs for debugging
+                foreach (var pr in prs)
+                {
+                    _logger.LogDebug("FindPR: Available PR #{PrNumber} by '{Author}' branch='{Branch}' title='{Title}'",
+                        pr.Number, pr.User.Login, pr.Head?.Ref, pr.Title);
+                }
             }
 
             return match;
@@ -497,7 +524,7 @@ public class NullGitHubService : IGitHubService
         return Task.CompletedTask;
     }
 
-    public Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]")
+    public Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "Copilot")
     {
         _logger.LogWarning("GitHub integration is not configured. Returning null PR.");
         return Task.FromResult<PullRequest?>(null);

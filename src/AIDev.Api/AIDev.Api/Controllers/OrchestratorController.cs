@@ -23,6 +23,7 @@ public class OrchestratorController : ControllerBase
     private readonly ICodebaseService _codebaseService;
     private readonly ILlmClientFactory _llmClientFactory;
     private readonly IArchitectLlmService _architectLlmService;
+    private readonly IGitHubService _gitHubService;
 
     public OrchestratorController(
         AppDbContext db,
@@ -30,7 +31,8 @@ public class OrchestratorController : ControllerBase
         ILogger<OrchestratorController> logger,
         ICodebaseService codebaseService,
         ILlmClientFactory llmClientFactory,
-        IArchitectLlmService architectLlmService)
+        IArchitectLlmService architectLlmService,
+        IGitHubService gitHubService)
     {
         _db = db;
         _configuration = configuration;
@@ -38,6 +40,7 @@ public class OrchestratorController : ControllerBase
         _codebaseService = codebaseService;
         _llmClientFactory = llmClientFactory;
         _architectLlmService = architectLlmService;
+        _gitHubService = gitHubService;
     }
 
     // ── Health ────────────────────────────────────────────────────────────
@@ -52,16 +55,25 @@ public class OrchestratorController : ControllerBase
         var triagedCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.Triaged);
         var architectReviewCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.ArchitectReview);
         var approvedCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.Approved);
+        var inProgressCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.InProgress);
+        var doneCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.Done);
         var totalRequests = await _db.DevRequests.CountAsync();
         var totalArchReviews = await _db.ArchitectReviews.CountAsync();
+
+        // Copilot session details for in-progress requests
+        var copilotSessions = await _db.DevRequests
+            .Where(r => r.Status == RequestStatus.InProgress && r.CopilotSessionId != null)
+            .Select(r => new { r.Id, r.GitHubIssueNumber, copilotStatus = r.CopilotStatus.ToString(), r.CopilotPrNumber, r.CopilotSessionId })
+            .ToListAsync();
 
         return Ok(new
         {
             status = "ok",
             timestamp = DateTime.UtcNow,
             architectAgentEnabled = bool.Parse(_configuration["ArchitectAgent:Enabled"] ?? "true"),
-            requests = new { total = totalRequests, triaged = triagedCount, architectReview = architectReviewCount, approved = approvedCount },
-            architectReviews = totalArchReviews
+            requests = new { total = totalRequests, triaged = triagedCount, architectReview = architectReviewCount, approved = approvedCount, inProgress = inProgressCount, done = doneCount },
+            architectReviews = totalArchReviews,
+            copilotSessions
         });
     }
 
@@ -446,5 +458,77 @@ public class OrchestratorController : ControllerBase
             _configuration["PipelineOrchestrator:FailedStaleHours"] = update.FailedStaleHours.Value.ToString();
 
         return GetConfig();
+    }
+
+    /// <summary>
+    /// Diagnostic: test PR detection for a specific request.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("test-pr-monitor/{requestId}")]
+    public async Task<ActionResult> TestPrMonitor(int requestId)
+    {
+        var steps = new List<object>();
+        try
+        {
+            var request = await _db.DevRequests
+                .Include(r => r.Project)
+                .FirstOrDefaultAsync(r => r.Id == requestId);
+
+            if (request == null)
+                return NotFound(new { error = $"Request #{requestId} not found" });
+
+            steps.Add(new
+            {
+                step = "load_request",
+                ok = true,
+                title = request.Title,
+                status = request.Status.ToString(),
+                copilotStatus = request.CopilotStatus.ToString(),
+                copilotSessionId = request.CopilotSessionId,
+                copilotPrNumber = request.CopilotPrNumber,
+                gitHubIssueNumber = request.GitHubIssueNumber,
+                copilotTriggeredAt = request.CopilotTriggeredAt
+            });
+
+            var owner = request.Project?.GitHubOwner ?? _configuration["GitHub:Owner"] ?? "";
+            var repo = request.Project?.GitHubRepo ?? _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+            steps.Add(new { step = "github_config", ok = true, owner, repo });
+
+            if (request.GitHubIssueNumber == null)
+            {
+                steps.Add(new { step = "error", ok = false, error = "No GitHubIssueNumber on request" });
+                return Ok(new { success = false, steps });
+            }
+
+            // Try to find PR
+            var pr = await _gitHubService.FindPrByIssueAndAuthorAsync(owner, repo, request.GitHubIssueNumber.Value);
+            if (pr != null)
+            {
+                steps.Add(new
+                {
+                    step = "find_pr",
+                    ok = true,
+                    prNumber = pr.Number,
+                    prTitle = pr.Title,
+                    prAuthor = pr.User?.Login,
+                    prState = pr.State.ToString(),
+                    prMerged = pr.Merged,
+                    prBranch = pr.Head?.Ref,
+                    prUrl = pr.HtmlUrl
+                });
+            }
+            else
+            {
+                steps.Add(new { step = "find_pr", ok = false, error = "No matching PR found" });
+            }
+
+            return Ok(new { success = pr != null, steps });
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { step = "error", ok = false, error = $"{ex.GetType().Name}: {ex.Message}" });
+            return Ok(new { success = false, steps });
+        }
     }
 }
