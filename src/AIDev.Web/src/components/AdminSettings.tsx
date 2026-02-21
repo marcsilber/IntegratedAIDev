@@ -211,14 +211,14 @@ export default function AdminSettings() {
             <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{
                 flex: 1, minWidth: "220px", padding: "1rem", borderRadius: "8px",
-                border: tokenBudget.dailyBudgetExceeded ? "2px solid #ef4444" : "1px solid #e2e8f0",
-                backgroundColor: tokenBudget.dailyBudgetExceeded ? "#fef2f2" : "#f8fafc"
+                border: tokenBudget.dailyBudgetExceeded ? "2px solid #ef4444" : "1px solid var(--border)",
+                backgroundColor: tokenBudget.dailyBudgetExceeded ? "rgba(239, 68, 68, 0.15)" : "var(--surface)"
               }}>
                 <strong>Daily Usage</strong>
                 <div style={{ fontSize: "1.5rem", fontWeight: 600, margin: "0.25rem 0" }}>
                   {tokenBudget.dailyTokensUsed.toLocaleString()}
                   {tokenBudget.dailyTokenBudget > 0 && (
-                    <span style={{ fontSize: "0.9rem", color: "#64748b" }}> / {tokenBudget.dailyTokenBudget.toLocaleString()}</span>
+                    <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}> / {tokenBudget.dailyTokenBudget.toLocaleString()}</span>
                   )}
                 </div>
                 <span className="muted">{tokenBudget.dailyReviewCount} reviews today</span>
@@ -228,14 +228,14 @@ export default function AdminSettings() {
               </div>
               <div style={{
                 flex: 1, minWidth: "220px", padding: "1rem", borderRadius: "8px",
-                border: tokenBudget.monthlyBudgetExceeded ? "2px solid #ef4444" : "1px solid #e2e8f0",
-                backgroundColor: tokenBudget.monthlyBudgetExceeded ? "#fef2f2" : "#f8fafc"
+                border: tokenBudget.monthlyBudgetExceeded ? "2px solid #ef4444" : "1px solid var(--border)",
+                backgroundColor: tokenBudget.monthlyBudgetExceeded ? "rgba(239, 68, 68, 0.15)" : "var(--surface)"
               }}>
                 <strong>Monthly Usage</strong>
                 <div style={{ fontSize: "1.5rem", fontWeight: 600, margin: "0.25rem 0" }}>
                   {tokenBudget.monthlyTokensUsed.toLocaleString()}
                   {tokenBudget.monthlyTokenBudget > 0 && (
-                    <span style={{ fontSize: "0.9rem", color: "#64748b" }}> / {tokenBudget.monthlyTokenBudget.toLocaleString()}</span>
+                    <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}> / {tokenBudget.monthlyTokenBudget.toLocaleString()}</span>
                   )}
                 </div>
                 <span className="muted">{tokenBudget.monthlyReviewCount} reviews this month</span>
@@ -389,14 +389,14 @@ export default function AdminSettings() {
             <div style={{ marginTop: "1rem", display: "flex", gap: "1rem", flexWrap: "wrap" }}>
               <div style={{
                 flex: 1, minWidth: "220px", padding: "1rem", borderRadius: "8px",
-                border: architectBudget.dailyBudgetExceeded ? "2px solid #ef4444" : "1px solid #e2e8f0",
-                backgroundColor: architectBudget.dailyBudgetExceeded ? "#fef2f2" : "#f8fafc"
+                border: architectBudget.dailyBudgetExceeded ? "2px solid #ef4444" : "1px solid var(--border)",
+                backgroundColor: architectBudget.dailyBudgetExceeded ? "rgba(239, 68, 68, 0.15)" : "var(--surface)"
               }}>
                 <strong>Daily Usage</strong>
                 <div style={{ fontSize: "1.5rem", fontWeight: 600, margin: "0.25rem 0" }}>
                   {architectBudget.dailyTokensUsed.toLocaleString()}
                   {architectBudget.dailyTokenBudget > 0 && (
-                    <span style={{ fontSize: "0.9rem", color: "#64748b" }}> / {architectBudget.dailyTokenBudget.toLocaleString()}</span>
+                    <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}> / {architectBudget.dailyTokenBudget.toLocaleString()}</span>
                   )}
                 </div>
                 <span className="muted">{architectBudget.dailyReviewCount} analyses today</span>
@@ -406,14 +406,14 @@ export default function AdminSettings() {
               </div>
               <div style={{
                 flex: 1, minWidth: "220px", padding: "1rem", borderRadius: "8px",
-                border: architectBudget.monthlyBudgetExceeded ? "2px solid #ef4444" : "1px solid #e2e8f0",
-                backgroundColor: architectBudget.monthlyBudgetExceeded ? "#fef2f2" : "#f8fafc"
+                border: architectBudget.monthlyBudgetExceeded ? "2px solid #ef4444" : "1px solid var(--border)",
+                backgroundColor: architectBudget.monthlyBudgetExceeded ? "rgba(239, 68, 68, 0.15)" : "var(--surface)"
               }}>
                 <strong>Monthly Usage</strong>
                 <div style={{ fontSize: "1.5rem", fontWeight: 600, margin: "0.25rem 0" }}>
                   {architectBudget.monthlyTokensUsed.toLocaleString()}
                   {architectBudget.monthlyTokenBudget > 0 && (
-                    <span style={{ fontSize: "0.9rem", color: "#64748b" }}> / {architectBudget.monthlyTokenBudget.toLocaleString()}</span>
+                    <span style={{ fontSize: "0.9rem", color: "var(--text-muted)" }}> / {architectBudget.monthlyTokenBudget.toLocaleString()}</span>
                   )}
                 </div>
                 <span className="muted">{architectBudget.monthlyReviewCount} analyses this month</span>
