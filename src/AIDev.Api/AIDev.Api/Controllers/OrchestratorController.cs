@@ -150,6 +150,7 @@ public class OrchestratorController : ControllerBase
         string? llmTestError = null;
         try
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
             var chatClient = _llmClientFactory.CreateChatClient();
             var messages = new List<OpenAI.Chat.ChatMessage>
             {
@@ -157,7 +158,7 @@ public class OrchestratorController : ControllerBase
                 new OpenAI.Chat.UserChatMessage("Test")
             };
             var opts = new OpenAI.Chat.ChatCompletionOptions { MaxOutputTokenCount = 10 };
-            var completion = await chatClient.CompleteChatAsync(messages, opts);
+            var completion = await chatClient.CompleteChatAsync(messages, opts, cts.Token);
             llmTestResult = completion.Value.Content[0].Text;
         }
         catch (Exception ex)

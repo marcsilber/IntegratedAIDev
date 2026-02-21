@@ -32,7 +32,11 @@ public class LlmClientFactory : ILlmClientFactory
 
         var openAiClient = new OpenAIClient(
             new ApiKeyCredential(apiKey),
-            new OpenAIClientOptions { Endpoint = new Uri(endpoint) });
+            new OpenAIClientOptions
+            {
+                Endpoint = new Uri(endpoint),
+                NetworkTimeout = TimeSpan.FromSeconds(120)
+            });
 
         _client = openAiClient.GetChatClient(ModelName);
     }
