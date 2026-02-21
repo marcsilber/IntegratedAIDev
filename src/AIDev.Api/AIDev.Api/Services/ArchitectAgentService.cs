@@ -53,12 +53,18 @@ public class ArchitectAgentService : BackgroundService
             {
                 try
                 {
+                    _logger.LogInformation("ArchitectAgentService: starting poll cycle");
                     await ProcessPendingRequestsAsync(stoppingToken);
+                    _logger.LogInformation("ArchitectAgentService: poll cycle complete");
                 }
                 catch (Exception ex) when (ex is not OperationCanceledException)
                 {
                     _logger.LogError(ex, "Error in ArchitectAgentService polling cycle");
                 }
+            }
+            else
+            {
+                _logger.LogInformation("ArchitectAgentService: disabled, skipping cycle");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(PollingIntervalSeconds), stoppingToken);
@@ -101,7 +107,11 @@ public class ArchitectAgentService : BackgroundService
             .Take(BatchSize)
             .ToListAsync(ct);
 
-        if (candidates.Count == 0) return;
+        if (candidates.Count == 0)
+        {
+            _logger.LogInformation("ArchitectAgentService: no candidates found");
+            return;
+        }
 
         _logger.LogInformation("Found {Count} requests for architect review", candidates.Count);
 

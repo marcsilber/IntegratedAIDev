@@ -34,6 +34,29 @@ public class OrchestratorController : ControllerBase
     // ── Health ────────────────────────────────────────────────────────────
 
     /// <summary>
+    /// Quick anonymous diagnostic endpoint to check deployed API status.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("ping")]
+    public async Task<ActionResult> Ping()
+    {
+        var triagedCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.Triaged);
+        var architectReviewCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.ArchitectReview);
+        var approvedCount = await _db.DevRequests.CountAsync(r => r.Status == RequestStatus.Approved);
+        var totalRequests = await _db.DevRequests.CountAsync();
+        var totalArchReviews = await _db.ArchitectReviews.CountAsync();
+
+        return Ok(new
+        {
+            status = "ok",
+            timestamp = DateTime.UtcNow,
+            architectAgentEnabled = bool.Parse(_configuration["ArchitectAgent:Enabled"] ?? "true"),
+            requests = new { total = totalRequests, triaged = triagedCount, architectReview = architectReviewCount, approved = approvedCount },
+            architectReviews = totalArchReviews
+        });
+    }
+
+    /// <summary>
     /// Get pipeline health summary with stall counts and deployment status.
     /// </summary>
     [HttpGet("health")]
