@@ -32,7 +32,8 @@ public interface ILlmService
 {
     Task<AgentReviewResult> ReviewRequestAsync(DevRequest request,
         List<RequestComment>? conversationHistory = null,
-        List<DevRequest>? existingRequests = null);
+        List<DevRequest>? existingRequests = null,
+        List<Attachment>? attachments = null);
 }
 
 public class LlmService : ILlmService
@@ -134,7 +135,8 @@ public class LlmService : ILlmService
 
     public async Task<AgentReviewResult> ReviewRequestAsync(DevRequest request,
         List<RequestComment>? conversationHistory = null,
-        List<DevRequest>? existingRequests = null)
+        List<DevRequest>? existingRequests = null,
+        List<Attachment>? attachments = null)
     {
         var sw = Stopwatch.StartNew();
 
@@ -144,10 +146,13 @@ public class LlmService : ILlmService
         _logger.LogInformation("Reviewing request #{RequestId} '{Title}' via {Model}",
             request.Id, request.Title, _modelName);
 
+        // Build multimodal user message with text + any image attachments
+        var userChatMessage = BuildMultimodalUserMessage(userMessage, attachments, _logger);
+
         var messages = new List<ChatMessage>
         {
             new SystemChatMessage(systemPrompt),
-            new UserChatMessage(userMessage)
+            userChatMessage
         };
 
         var options = new ChatCompletionOptions
@@ -294,6 +299,65 @@ public class LlmService : ILlmService
                 DurationMs: durationMs
             );
         }
+    }
+
+    /// <summary>
+    /// Builds a UserChatMessage with text and optional image attachments for vision-capable models.
+    /// Shared by PO Agent and Architect Agent.
+    /// </summary>
+    internal static UserChatMessage BuildMultimodalUserMessage(
+        string textMessage,
+        List<Attachment>? attachments,
+        ILogger logger)
+    {
+        var imageAttachments = attachments?
+            .Where(a => a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        if (imageAttachments == null || imageAttachments.Count == 0)
+        {
+            return new UserChatMessage(textMessage);
+        }
+
+        var parts = new List<ChatMessageContentPart>
+        {
+            ChatMessageContentPart.CreateTextPart(textMessage)
+        };
+
+        foreach (var attachment in imageAttachments)
+        {
+            try
+            {
+                var filePath = Path.Combine(Directory.GetCurrentDirectory(), attachment.StoredPath);
+                if (!File.Exists(filePath))
+                {
+                    logger.LogWarning("Attachment file not found: {Path}", filePath);
+                    continue;
+                }
+
+                // Skip very large images (>5 MB) to avoid excessive token usage
+                var fileInfo = new FileInfo(filePath);
+                if (fileInfo.Length > 5 * 1024 * 1024)
+                {
+                    logger.LogWarning("Skipping oversized image attachment {FileName} ({Size} bytes)",
+                        attachment.FileName, fileInfo.Length);
+                    continue;
+                }
+
+                var imageBytes = File.ReadAllBytes(filePath);
+                var binaryData = BinaryData.FromBytes(imageBytes);
+                parts.Add(ChatMessageContentPart.CreateImagePart(binaryData, attachment.ContentType));
+
+                logger.LogInformation("Included image attachment '{FileName}' ({ContentType}, {Size} bytes)",
+                    attachment.FileName, attachment.ContentType, fileInfo.Length);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to load image attachment {FileName}", attachment.FileName);
+            }
+        }
+
+        return new UserChatMessage(parts);
     }
 
     private class LlmResponseDto

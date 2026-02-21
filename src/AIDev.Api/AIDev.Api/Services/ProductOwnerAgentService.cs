@@ -81,6 +81,7 @@ public class ProductOwnerAgentService : BackgroundService
             .Include(r => r.Comments)
             .Include(r => r.Project)
             .Include(r => r.AgentReviews)
+            .Include(r => r.Attachments)
             .Where(r =>
                 // New requests never reviewed
                 (r.Status == RequestStatus.New && r.AgentReviewCount == 0)
@@ -130,7 +131,8 @@ public class ProductOwnerAgentService : BackgroundService
             .Take(50) // Limit to recent 50 to keep prompt manageable
             .ToListAsync(ct);
 
-        var result = await _llmService.ReviewRequestAsync(request, conversationHistory, existingRequests);
+        var result = await _llmService.ReviewRequestAsync(request, conversationHistory, existingRequests,
+            request.Attachments?.ToList());
 
         // Create the AgentReview record
         var review = new AgentReview

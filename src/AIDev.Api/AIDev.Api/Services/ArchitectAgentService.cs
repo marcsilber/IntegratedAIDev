@@ -93,6 +93,7 @@ public class ArchitectAgentService : BackgroundService
             .Include(r => r.Project)
             .Include(r => r.AgentReviews)
             .Include(r => r.ArchitectReviews)
+            .Include(r => r.Attachments)
             .Where(r =>
                 // Triaged requests never architect-reviewed
                 (r.Status == RequestStatus.Triaged && r.ArchitectReviewCount == 0)
@@ -172,7 +173,8 @@ public class ArchitectAgentService : BackgroundService
 
         // 6. Call the architect LLM service
         var result = await _architectLlmService.AnalyseRequestAsync(
-            request, poReview, repoMap, FileReader, conversationHistory);
+            request, poReview, repoMap, FileReader, conversationHistory,
+            request.Attachments?.ToList());
 
         // 7. Create ArchitectReview record
         var solutionJson = JsonSerializer.Serialize(new

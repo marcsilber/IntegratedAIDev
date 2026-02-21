@@ -61,7 +61,8 @@ public interface IArchitectLlmService
         AgentReview productOwnerReview,
         string repositoryMap,
         Func<IEnumerable<string>, Task<Dictionary<string, string>>> fileReader,
-        List<RequestComment>? conversationHistory = null);
+        List<RequestComment>? conversationHistory = null,
+        List<Attachment>? attachments = null);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -215,7 +216,8 @@ public class ArchitectLlmService : IArchitectLlmService
         AgentReview productOwnerReview,
         string repositoryMap,
         Func<IEnumerable<string>, Task<Dictionary<string, string>>> fileReader,
-        List<RequestComment>? conversationHistory = null)
+        List<RequestComment>? conversationHistory = null,
+        List<Attachment>? attachments = null)
     {
         var totalSw = Stopwatch.StartNew();
 
@@ -307,10 +309,13 @@ public class ArchitectLlmService : IArchitectLlmService
 
         var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory);
 
+        // Build multimodal user message with text + any image attachments for Step 2
+        var step2UserChatMessage = LlmService.BuildMultimodalUserMessage(step2UserMessage, attachments, _logger);
+
         var step2Messages = new List<ChatMessage>
         {
             new SystemChatMessage(step2SystemPrompt),
-            new UserChatMessage(step2UserMessage)
+            step2UserChatMessage
         };
 
         var step2Options = new ChatCompletionOptions
