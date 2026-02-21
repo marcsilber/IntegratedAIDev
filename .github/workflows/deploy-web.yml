@@ -23,6 +23,7 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "src/AIDev.Web"
+          app_build_command: "npm run build"
           output_location: "dist"
         env:
           VITE_API_URL: https://aidev-api.azurewebsites.net
