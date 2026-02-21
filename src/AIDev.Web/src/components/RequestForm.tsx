@@ -293,7 +293,7 @@ export default function RequestForm() {
                           maxWidth: isHovered ? 480 : 48,
                           objectFit: "contain",
                           borderRadius: 4,
-                          border: "1px solid #e2e8f0",
+                          border: "1px solid var(--border)",
                           cursor: "zoom-in",
                           transition: "height 0.2s ease, max-width 0.2s ease",
                           zIndex: isHovered ? 10 : 1,
