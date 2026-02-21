@@ -77,6 +77,7 @@ public class ArchitectLlmService : IArchitectLlmService
     private readonly float _temperature;
     private readonly int _maxTokens;
     private readonly int _maxFilesToRead;
+    private readonly int _maxInputChars;
 
     private const string FileSelectionSystemPrompt = """
         You are a Software Architect Agent for the AI Dev Pipeline platform.
@@ -201,6 +202,10 @@ public class ArchitectLlmService : IArchitectLlmService
         _temperature = float.Parse(configuration["ArchitectAgent:Temperature"] ?? "0.2");
         _maxTokens = int.Parse(configuration["ArchitectAgent:MaxTokens"] ?? "4000");
         _maxFilesToRead = int.Parse(configuration["ArchitectAgent:MaxFilesToRead"] ?? "20");
+        // Max input chars: GitHub Models free tier allows 8K tokens for gpt-4o-mini.
+        // Reserve space for output tokens. ~4 chars per token.
+        var maxInputTokens = int.Parse(configuration["ArchitectAgent:MaxInputTokens"] ?? "6000");
+        _maxInputChars = maxInputTokens * 4;
 
         _chatClient = clientFactory.CreateChatClient();
     }
@@ -258,6 +263,37 @@ public class ArchitectLlmService : IArchitectLlmService
 
         var fileContentsSerialized = BuildFileContentsBlock(fileContents);
         var referenceContext = _refDocs.GetSystemPromptContext();
+
+        // Truncate content to fit within the model's input token limit.
+        // System prompt template + JSON example is ~2500 chars. Reserve that + output budget.
+        var fixedOverhead = 3000; // system prompt structure + PO review fields
+        var availableForContent = Math.Max(1000, _maxInputChars - fixedOverhead);
+
+        // Split budget: 40% reference context, 20% repo map, 40% file contents
+        var maxRefChars = (int)(availableForContent * 0.4);
+        var maxMapChars = (int)(availableForContent * 0.2);
+        var maxFileChars = (int)(availableForContent * 0.4);
+
+        if (referenceContext.Length > maxRefChars)
+        {
+            referenceContext = referenceContext[..maxRefChars] + "\n[...truncated]";
+            _logger.LogInformation("Truncated reference context to {Chars} chars", maxRefChars);
+        }
+        if (repositoryMap.Length > maxMapChars)
+        {
+            repositoryMap = repositoryMap[..maxMapChars] + "\n[...truncated]";
+            _logger.LogInformation("Truncated repo map to {Chars} chars", maxMapChars);
+        }
+        if (fileContentsSerialized.Length > maxFileChars)
+        {
+            fileContentsSerialized = fileContentsSerialized[..maxFileChars] + "\n[...truncated]";
+            _logger.LogInformation("Truncated file contents to {Chars} chars", maxFileChars);
+        }
+
+        _logger.LogInformation(
+            "Step 2 prompt sizes — ref: {Ref}, map: {Map}, files: {Files}, total: {Total} chars",
+            referenceContext.Length, repositoryMap.Length, fileContentsSerialized.Length,
+            referenceContext.Length + repositoryMap.Length + fileContentsSerialized.Length + fixedOverhead);
 
         var step2SystemPrompt = string.Format(
             SolutionProposalSystemPrompt,
