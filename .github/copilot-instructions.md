@@ -37,9 +37,17 @@
 - Run `dotnet test` if test project exists
 - Run `npx tsc -b` for full build verification
 
+## Deployment & Pipeline
+- **Deployment Mode**: `Auto` (default) — PRs auto-merge after code review, deploy on push. `Staged` — Code Review approves but does NOT merge; PRs accumulate until a human clicks Deploy in the admin panel.
+- **Auto-Retry**: Failed GitHub Actions deployments are automatically retried up to `MaxDeployRetries` (default 3). First tries `rerun-failed-jobs`, then falls back to `workflow_dispatch`.
+- **Deploy Endpoints**: `GET /api/orchestrator/staged` (list staged PRs), `POST /api/orchestrator/deploy` (merge all staged PRs), `POST /api/orchestrator/deploy/trigger-workflows` (manual redeploy), `POST /api/orchestrator/deploy/retry/{requestId}` (retry specific deployment), `GET /api/orchestrator/deploy/status` (mode + recent workflow runs).
+- **Config**: `PipelineOrchestrator:DeploymentMode` and `PipelineOrchestrator:MaxDeployRetries` in appsettings.json, editable from admin panel.
+- **GitHub Actions**: `deploy-api.yml` (Azure App Service) and `deploy-web.yml` (Azure Static Web Apps), both have `push` + `workflow_dispatch` triggers.
+
 ## Data Model
 - `DevRequest` is the core entity, linked to `Project`, `RequestComment`, `AgentReview`, `ArchitectReview`, and `Attachment`
 - Status flow: New → Triaged → ArchitectReview → Approved → InProgress → Done
+- `DeploymentRetryCount` on DevRequest tracks auto-retry attempts for failed deployments
 - Copilot fields on DevRequest track implementation session state
 
 ## Important Rules

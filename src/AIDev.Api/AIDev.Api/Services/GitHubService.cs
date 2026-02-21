@@ -44,6 +44,12 @@ public interface IGitHubService
     Task<bool> CommitFilesAsync(string owner, string repo, string branch, Dictionary<string, byte[]> files, string commitMessage);
     /// <summary>Remove files matching a path prefix from a branch (e.g., _temp-attachments/).</summary>
     Task<bool> RemoveFilesFromBranchAsync(string owner, string repo, string branch, string pathPrefix, string commitMessage);
+    /// <summary>Rerun only the failed jobs of a workflow run.</summary>
+    Task<bool> RerunFailedJobsAsync(string owner, string repo, long runId);
+    /// <summary>Trigger a workflow_dispatch event on a specific workflow file.</summary>
+    Task<bool> TriggerWorkflowDispatchAsync(string owner, string repo, string workflowFileName, string branch = "main");
+    /// <summary>Get the most recent workflow runs for a specific workflow file.</summary>
+    Task<List<(long runId, string status, string conclusion, DateTime createdAt)>> GetWorkflowRunsByNameAsync(string owner, string repo, string workflowFileName, int count = 5);
 }
 
 public class GitHubService : IGitHubService
@@ -786,6 +792,87 @@ public class GitHubService : IGitHubService
 
         return body;
     }
+
+    public async Task<bool> RerunFailedJobsAsync(string owner, string repo, long runId)
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var url = $"https://api.github.com/repos/{owner}/{repo}/actions/runs/{runId}/rerun-failed-jobs";
+            var response = await http.PostAsync(url, new StringContent("{}", Encoding.UTF8, "application/json"));
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("Rerun triggered for failed jobs in workflow run {RunId}", runId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to rerun failed jobs for run {RunId} in {Owner}/{Repo}", runId, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<bool> TriggerWorkflowDispatchAsync(string owner, string repo, string workflowFileName, string branch = "main")
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var url = $"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{workflowFileName}/dispatches";
+            var body = JsonSerializer.Serialize(new { @ref = branch });
+            var response = await http.PostAsync(url, new StringContent(body, Encoding.UTF8, "application/json"));
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("Triggered workflow_dispatch for {Workflow} on branch {Branch}", workflowFileName, branch);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to trigger workflow_dispatch for {Workflow} in {Owner}/{Repo}", workflowFileName, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<List<(long runId, string status, string conclusion, DateTime createdAt)>> GetWorkflowRunsByNameAsync(
+        string owner, string repo, string workflowFileName, int count = 5)
+    {
+        var results = new List<(long, string, string, DateTime)>();
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var url = $"https://api.github.com/repos/{owner}/{repo}/actions/workflows/{workflowFileName}/runs?per_page={count}";
+            var response = await http.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var runs = doc.RootElement.GetProperty("workflow_runs");
+            foreach (var run in runs.EnumerateArray())
+            {
+                results.Add((
+                    run.GetProperty("id").GetInt64(),
+                    run.GetProperty("status").GetString() ?? "unknown",
+                    run.TryGetProperty("conclusion", out var c) ? c.GetString() ?? "" : "",
+                    run.GetProperty("created_at").GetDateTime()
+                ));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get workflow runs for {Workflow} in {Owner}/{Repo}", workflowFileName, owner, repo);
+        }
+        return results;
+    }
 }
 
 /// <summary>
@@ -943,5 +1030,24 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping file removal.");
         return Task.FromResult(false);
+    }
+
+    public Task<bool> RerunFailedJobsAsync(string owner, string repo, long runId)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping rerun.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> TriggerWorkflowDispatchAsync(string owner, string repo, string workflowFileName, string branch = "main")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping workflow dispatch.");
+        return Task.FromResult(false);
+    }
+
+    public Task<List<(long runId, string status, string conclusion, DateTime createdAt)>> GetWorkflowRunsByNameAsync(
+        string owner, string repo, string workflowFileName, int count = 5)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning empty workflow runs.");
+        return Task.FromResult(new List<(long, string, string, DateTime)>());
     }
 }

@@ -66,6 +66,18 @@ public enum DeploymentStatus
 }
 
 /// <summary>
+/// Controls whether deployments happen automatically after PR merge
+/// or require manual trigger from the admin panel.
+/// </summary>
+public enum DeploymentMode
+{
+    /// <summary>PRs auto-merge and deploy immediately after code review approval.</summary>
+    Auto,
+    /// <summary>PRs are approved but not merged until a human clicks Deploy.</summary>
+    Staged
+}
+
+/// <summary>
 /// Severity of a pipeline stall alert.
 /// </summary>
 public enum StallSeverity

@@ -287,6 +287,8 @@ public class OrchestratorController : ControllerBase
             DeploymentsInProgress = summary.DeploymentsInProgress,
             DeploymentsSucceeded = summary.DeploymentsSucceeded,
             DeploymentsFailed = summary.DeploymentsFailed,
+            DeploymentsRetrying = summary.DeploymentsRetrying,
+            StagedForDeploy = summary.StagedForDeploy,
             BranchesDeleted = summary.BranchesDeleted,
             BranchesOutstanding = summary.BranchesOutstanding
         });
@@ -417,7 +419,8 @@ public class OrchestratorController : ControllerBase
             MergedAt = r.CopilotCompletedAt,
             DeployedAt = r.DeployedAt,
             BranchDeleted = r.BranchDeleted,
-            BranchName = r.CopilotBranchName
+            BranchName = r.CopilotBranchName,
+            RetryCount = r.DeploymentRetryCount
         }).ToList());
     }
 
@@ -436,7 +439,9 @@ public class OrchestratorController : ControllerBase
             NeedsClarificationStaleDays = int.Parse(_configuration["PipelineOrchestrator:NeedsClarificationStaleDays"] ?? "7"),
             ArchitectReviewStaleDays = int.Parse(_configuration["PipelineOrchestrator:ArchitectReviewStaleDays"] ?? "3"),
             ApprovedStaleDays = int.Parse(_configuration["PipelineOrchestrator:ApprovedStaleDays"] ?? "1"),
-            FailedStaleHours = int.Parse(_configuration["PipelineOrchestrator:FailedStaleHours"] ?? "24")
+            FailedStaleHours = int.Parse(_configuration["PipelineOrchestrator:FailedStaleHours"] ?? "24"),
+            DeploymentMode = _configuration["PipelineOrchestrator:DeploymentMode"] ?? "Auto",
+            MaxDeployRetries = int.Parse(_configuration["PipelineOrchestrator:MaxDeployRetries"] ?? "3")
         });
     }
 
@@ -458,8 +463,241 @@ public class OrchestratorController : ControllerBase
             _configuration["PipelineOrchestrator:ApprovedStaleDays"] = update.ApprovedStaleDays.Value.ToString();
         if (update.FailedStaleHours.HasValue)
             _configuration["PipelineOrchestrator:FailedStaleHours"] = update.FailedStaleHours.Value.ToString();
+        if (update.DeploymentMode != null)
+            _configuration["PipelineOrchestrator:DeploymentMode"] = update.DeploymentMode;
+        if (update.MaxDeployRetries.HasValue)
+            _configuration["PipelineOrchestrator:MaxDeployRetries"] = update.MaxDeployRetries.Value.ToString();
 
         return GetConfig();
+    }
+
+    // ── Deploy Actions ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Get staged (approved but unmerged) PRs awaiting deployment.
+    /// </summary>
+    [HttpGet("staged")]
+    public async Task<ActionResult<List<StagedDeploymentDto>>> GetStagedDeployments()
+    {
+        var staged = await _db.DevRequests
+            .Include(r => r.Project)
+            .Include(r => r.CodeReviews)
+            .Where(r => r.Status == RequestStatus.InProgress
+                     && r.CopilotStatus == CopilotImplementationStatus.ReviewApproved
+                     && r.CopilotPrNumber != null)
+            .OrderBy(r => r.CopilotTriggeredAt)
+            .ToListAsync();
+
+        return Ok(staged.Select(r => new StagedDeploymentDto
+        {
+            RequestId = r.Id,
+            Title = r.Title,
+            PrNumber = r.CopilotPrNumber!.Value,
+            PrUrl = r.CopilotPrUrl ?? "",
+            BranchName = r.CopilotBranchName ?? "",
+            QualityScore = r.CodeReviews.OrderByDescending(cr => cr.CreatedAt).FirstOrDefault()?.QualityScore ?? 0,
+            ApprovedAt = r.CodeReviews.OrderByDescending(cr => cr.CreatedAt).FirstOrDefault()?.CreatedAt,
+            GitHubIssueNumber = r.GitHubIssueNumber
+        }).ToList());
+    }
+
+    /// <summary>
+    /// Deploy all staged PRs: merge them and let the push-triggered workflows deploy.
+    /// </summary>
+    [HttpPost("deploy")]
+    public async Task<ActionResult<DeployTriggerResponseDto>> TriggerDeploy()
+    {
+        var owner = _configuration["GitHub:Owner"] ?? "";
+        var repo = _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+        var staged = await _db.DevRequests
+            .Include(r => r.Project)
+            .Where(r => r.Status == RequestStatus.InProgress
+                     && r.CopilotStatus == CopilotImplementationStatus.ReviewApproved
+                     && r.CopilotPrNumber != null)
+            .OrderBy(r => r.CopilotTriggeredAt)
+            .ToListAsync();
+
+        var merged = new List<int>();
+        var failed = new List<int>();
+
+        foreach (var request in staged)
+        {
+            var reqOwner = request.Project?.GitHubOwner ?? owner;
+            var reqRepo = request.Project?.GitHubRepo ?? repo;
+            var prNumber = request.CopilotPrNumber!.Value;
+
+            try
+            {
+                // Ensure branch is up-to-date before merging
+                if (!string.IsNullOrEmpty(request.CopilotBranchName))
+                {
+                    var behindBy = await _gitHubService.GetBehindByCountAsync(reqOwner, reqRepo, "main", request.CopilotBranchName);
+                    if (behindBy > 0)
+                    {
+                        var updated = await _gitHubService.UpdatePrBranchAsync(reqOwner, reqRepo, prNumber);
+                        if (!updated)
+                        {
+                            _logger.LogWarning("Deploy: PR #{PrNumber} has merge conflicts, skipping", prNumber);
+                            failed.Add(prNumber);
+                            continue;
+                        }
+                        await Task.Delay(TimeSpan.FromSeconds(5));
+                    }
+                }
+
+                // Clean up temp attachments before merge
+                if (!string.IsNullOrEmpty(request.CopilotBranchName))
+                {
+                    await _gitHubService.RemoveFilesFromBranchAsync(
+                        reqOwner, reqRepo, request.CopilotBranchName,
+                        "_temp-attachments/", "Clean up temp attachment files before merge");
+                    await Task.Delay(TimeSpan.FromSeconds(2));
+                }
+
+                // Merge PR
+                var commitMsg = $"{request.Title} (#{prNumber})\n\nMerged via Deploy action.\n";
+                var mergeOk = await _gitHubService.MergePullRequestAsync(reqOwner, reqRepo, prNumber, commitMsg);
+
+                if (mergeOk)
+                {
+                    merged.Add(prNumber);
+                    request.CopilotStatus = CopilotImplementationStatus.PrMerged;
+                    request.CopilotCompletedAt = DateTime.UtcNow;
+                    request.Status = RequestStatus.Done;
+                    request.DeploymentStatus = Models.DeploymentStatus.Pending;
+                    request.DeploymentRetryCount = 0;
+                    request.UpdatedAt = DateTime.UtcNow;
+
+                    // Delete feature branch
+                    if (!string.IsNullOrEmpty(request.CopilotBranchName))
+                    {
+                        var deleted = await _gitHubService.DeleteBranchAsync(reqOwner, reqRepo, request.CopilotBranchName);
+                        if (deleted) request.BranchDeleted = true;
+                    }
+
+                    // Clean up labels
+                    if (request.GitHubIssueNumber.HasValue)
+                    {
+                        await _gitHubService.RemoveLabelAsync(reqOwner, reqRepo, request.GitHubIssueNumber.Value, "review:approved");
+                        await _gitHubService.RemoveLabelAsync(reqOwner, reqRepo, request.GitHubIssueNumber.Value, "deploy:staged");
+                        await _gitHubService.AddLabelAsync(reqOwner, reqRepo, request.GitHubIssueNumber.Value, "copilot:complete", "10b981");
+
+                        await _gitHubService.PostAgentCommentAsync(reqOwner, reqRepo, request.GitHubIssueNumber.Value,
+                            $"🚀 **Deployed!** PR #{prNumber} merged and deployment triggered.\n\n" +
+                            "Triggered by manual deploy action from AIDev Admin panel.");
+                    }
+                }
+                else
+                {
+                    failed.Add(prNumber);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Deploy: Error merging PR #{PrNumber}", prNumber);
+                failed.Add(prNumber);
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new DeployTriggerResponseDto
+        {
+            MergedPrs = merged,
+            FailedPrs = failed,
+            Message = merged.Count > 0
+                ? $"Merged {merged.Count} PR(s). Deployment workflows will trigger automatically."
+                : "No PRs were merged."
+        });
+    }
+
+    /// <summary>
+    /// Manually trigger workflow_dispatch for both API and Web deploy workflows.
+    /// Useful for redeploying without merging anything new.
+    /// </summary>
+    [HttpPost("deploy/trigger-workflows")]
+    public async Task<ActionResult> TriggerWorkflows()
+    {
+        var owner = _configuration["GitHub:Owner"] ?? "";
+        var repo = _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+        var apiOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-api.yml");
+        var webOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-web.yml");
+
+        return Ok(new
+        {
+            apiTriggered = apiOk,
+            webTriggered = webOk,
+            message = apiOk && webOk ? "Both deployment workflows triggered." :
+                      apiOk ? "Only API workflow triggered." :
+                      webOk ? "Only Web workflow triggered." :
+                      "Failed to trigger workflows."
+        });
+    }
+
+    /// <summary>
+    /// Retry a specific failed deployment by rerunning the workflow or dispatching a new one.
+    /// </summary>
+    [HttpPost("deploy/retry/{requestId}")]
+    public async Task<ActionResult> RetryDeployment(int requestId)
+    {
+        var request = await _db.DevRequests
+            .Include(r => r.Project)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null) return NotFound(new { error = $"Request #{requestId} not found" });
+        if (request.DeploymentStatus != Models.DeploymentStatus.Failed)
+            return BadRequest(new { error = "Request deployment is not in Failed status" });
+
+        var owner = request.Project?.GitHubOwner ?? _configuration["GitHub:Owner"] ?? "";
+        var repo = request.Project?.GitHubRepo ?? _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+        bool success = false;
+
+        // Try rerunning the failed workflow run first
+        if (request.DeploymentRunId.HasValue)
+        {
+            success = await _gitHubService.RerunFailedJobsAsync(owner, repo, request.DeploymentRunId.Value);
+        }
+
+        // If rerun didn't work, trigger fresh dispatches
+        if (!success)
+        {
+            var apiOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-api.yml");
+            var webOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-web.yml");
+            success = apiOk || webOk;
+        }
+
+        if (success)
+        {
+            request.DeploymentStatus = Models.DeploymentStatus.Pending;
+            request.DeploymentRetryCount++;
+            request.UpdatedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
+
+        return Ok(new { success, requestId, message = success ? "Deployment retry triggered." : "Failed to trigger retry." });
+    }
+
+    /// <summary>
+    /// Get recent workflow run status for both deploy workflows.
+    /// </summary>
+    [HttpGet("deploy/status")]
+    public async Task<ActionResult> GetDeployStatus()
+    {
+        var owner = _configuration["GitHub:Owner"] ?? "";
+        var repo = _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+        var apiRuns = await _gitHubService.GetWorkflowRunsByNameAsync(owner, repo, "deploy-api.yml", 3);
+        var webRuns = await _gitHubService.GetWorkflowRunsByNameAsync(owner, repo, "deploy-web.yml", 3);
+
+        return Ok(new
+        {
+            deploymentMode = _configuration["PipelineOrchestrator:DeploymentMode"] ?? "Auto",
+            api = apiRuns.Select(r => new { r.runId, r.status, r.conclusion, r.createdAt }),
+            web = webRuns.Select(r => new { r.runId, r.status, r.conclusion, r.createdAt })
+        });
     }
 
     /// <summary>

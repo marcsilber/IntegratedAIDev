@@ -373,6 +373,8 @@ public class PipelineHealthDto
     public int DeploymentsInProgress { get; set; }
     public int DeploymentsSucceeded { get; set; }
     public int DeploymentsFailed { get; set; }
+    public int DeploymentsRetrying { get; set; }
+    public int StagedForDeploy { get; set; }
     public int BranchesDeleted { get; set; }
     public int BranchesOutstanding { get; set; }
 }
@@ -385,6 +387,8 @@ public class PipelineConfigDto
     public int ArchitectReviewStaleDays { get; set; }
     public int ApprovedStaleDays { get; set; }
     public int FailedStaleHours { get; set; }
+    public string DeploymentMode { get; set; } = "Auto";
+    public int MaxDeployRetries { get; set; }
 }
 
 public class PipelineConfigUpdateDto
@@ -395,6 +399,8 @@ public class PipelineConfigUpdateDto
     public int? ArchitectReviewStaleDays { get; set; }
     public int? ApprovedStaleDays { get; set; }
     public int? FailedStaleHours { get; set; }
+    public string? DeploymentMode { get; set; }
+    public int? MaxDeployRetries { get; set; }
 }
 
 public class StalledRequestDto
@@ -420,4 +426,24 @@ public class DeploymentTrackingDto
     public DateTime? DeployedAt { get; set; }
     public bool BranchDeleted { get; set; }
     public string? BranchName { get; set; }
+    public int RetryCount { get; set; }
+}
+
+public class StagedDeploymentDto
+{
+    public int RequestId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public int PrNumber { get; set; }
+    public string PrUrl { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+    public int QualityScore { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public int? GitHubIssueNumber { get; set; }
+}
+
+public class DeployTriggerResponseDto
+{
+    public List<int> MergedPrs { get; set; } = new();
+    public List<int> FailedPrs { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
 }

@@ -680,6 +680,7 @@ export async function getImplementationStats(): Promise<ImplementationStats> {
 // ── Pipeline Orchestrator Types ───────────────────────────────────────────
 
 export type DeploymentStatus = "None" | "Pending" | "InProgress" | "Succeeded" | "Failed";
+export type DeploymentMode = "Auto" | "Staged";
 export type StallSeverity = "Warning" | "Critical";
 
 export interface PipelineHealth {
@@ -692,6 +693,8 @@ export interface PipelineHealth {
   deploymentsInProgress: number;
   deploymentsSucceeded: number;
   deploymentsFailed: number;
+  deploymentsRetrying: number;
+  stagedForDeploy: number;
   branchesDeleted: number;
   branchesOutstanding: number;
 }
@@ -717,6 +720,37 @@ export interface DeploymentTracking {
   deployedAt?: string;
   branchDeleted: boolean;
   branchName?: string;
+  retryCount: number;
+}
+
+export interface StagedDeployment {
+  requestId: number;
+  title: string;
+  prNumber: number;
+  prUrl: string;
+  branchName: string;
+  qualityScore: number;
+  approvedAt?: string;
+  gitHubIssueNumber?: number;
+}
+
+export interface DeployTriggerResponse {
+  mergedPrs: number[];
+  failedPrs: number[];
+  message: string;
+}
+
+export interface WorkflowRunInfo {
+  runId: number;
+  status: string;
+  conclusion: string;
+  createdAt: string;
+}
+
+export interface DeployStatus {
+  deploymentMode: DeploymentMode;
+  api: WorkflowRunInfo[];
+  web: WorkflowRunInfo[];
 }
 
 export interface PipelineConfig {
@@ -726,6 +760,8 @@ export interface PipelineConfig {
   architectReviewStaleDays: number;
   approvedStaleDays: number;
   failedStaleHours: number;
+  deploymentMode: string;
+  maxDeployRetries: number;
 }
 
 export interface PipelineConfigUpdate {
@@ -735,6 +771,8 @@ export interface PipelineConfigUpdate {
   architectReviewStaleDays?: number;
   approvedStaleDays?: number;
   failedStaleHours?: number;
+  deploymentMode?: string;
+  maxDeployRetries?: number;
 }
 
 // ── Pipeline Orchestrator Functions ───────────────────────────────────────
@@ -765,6 +803,31 @@ export async function updatePipelineConfig(
   config: PipelineConfigUpdate
 ): Promise<PipelineConfig> {
   const { data } = await api.put("/orchestrator/config", config);
+  return data;
+}
+
+export async function getStagedDeployments(): Promise<StagedDeployment[]> {
+  const { data } = await api.get("/orchestrator/staged");
+  return data;
+}
+
+export async function triggerDeploy(): Promise<DeployTriggerResponse> {
+  const { data } = await api.post("/orchestrator/deploy");
+  return data;
+}
+
+export async function triggerWorkflows(): Promise<{ apiTriggered: boolean; webTriggered: boolean; message: string }> {
+  const { data } = await api.post("/orchestrator/deploy/trigger-workflows");
+  return data;
+}
+
+export async function retryDeployment(requestId: number): Promise<{ success: boolean; message: string }> {
+  const { data } = await api.post(`/orchestrator/deploy/retry/${requestId}`);
+  return data;
+}
+
+export async function getDeployStatus(): Promise<DeployStatus> {
+  const { data } = await api.get("/orchestrator/deploy/status");
   return data;
 }
 

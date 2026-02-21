@@ -22,6 +22,7 @@ public class CodeReviewAgentService : BackgroundService
     private bool IsEnabled => bool.Parse(_configuration["CodeReviewAgent:Enabled"] ?? "true");
     private bool AutoMerge => bool.Parse(_configuration["CodeReviewAgent:AutoMerge"] ?? "true");
     private int MinQualityScore => int.Parse(_configuration["CodeReviewAgent:MinQualityScore"] ?? "6");
+    private bool IsStagedMode => string.Equals(_configuration["PipelineOrchestrator:DeploymentMode"], "Staged", StringComparison.OrdinalIgnoreCase);
 
     public CodeReviewAgentService(
         IServiceScopeFactory scopeFactory,
@@ -225,6 +226,27 @@ public class CodeReviewAgentService : BackgroundService
 
         if (AutoMerge)
         {
+            // In Staged mode, approve but do NOT merge — wait for human to trigger deploy
+            if (IsStagedMode)
+            {
+                request.CopilotStatus = CopilotImplementationStatus.ReviewApproved;
+                request.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+
+                await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                    "deploy:staged", "6366f1");
+
+                await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                    $"✅ **Code review passed** (quality {result.QualityScore}/10). " +
+                    $"PR #{prNumber} is approved and ready to merge.\n\n" +
+                    "🔒 **Staged deployment mode** is active — this PR will be merged when a human triggers deployment from the Admin panel.");
+
+                _logger.LogInformation(
+                    "CodeReview: PR #{PrNumber} approved in Staged mode for request #{RequestId}. Awaiting manual deploy trigger.",
+                    prNumber, request.Id);
+                return;
+            }
+
             // Set status to ReviewApproved before merging
             request.CopilotStatus = CopilotImplementationStatus.ReviewApproved;
             request.UpdatedAt = DateTime.UtcNow;

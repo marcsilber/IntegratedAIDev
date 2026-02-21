@@ -87,6 +87,9 @@ public class DevRequest
     /// <summary>When the deployment completed (success or failure).</summary>
     public DateTime? DeployedAt { get; set; }
 
+    /// <summary>Number of times deployment has been retried after failure.</summary>
+    public int DeploymentRetryCount { get; set; } = 0;
+
     /// <summary>When a stall notification was last sent for this request.</summary>
     public DateTime? StallNotifiedAt { get; set; }
 }

@@ -23,6 +23,8 @@ public class PipelineOrchestratorService : BackgroundService
     private int ArchitectReviewStaleDays => int.Parse(_configuration["PipelineOrchestrator:ArchitectReviewStaleDays"] ?? "3");
     private int ApprovedStaleDays => int.Parse(_configuration["PipelineOrchestrator:ApprovedStaleDays"] ?? "1");
     private int FailedStaleHours => int.Parse(_configuration["PipelineOrchestrator:FailedStaleHours"] ?? "24");
+    private int MaxDeployRetries => int.Parse(_configuration["PipelineOrchestrator:MaxDeployRetries"] ?? "3");
+    private string DeploymentModeString => _configuration["PipelineOrchestrator:DeploymentMode"] ?? "Auto";
 
     public PipelineOrchestratorService(
         IServiceScopeFactory scopeFactory,
@@ -158,23 +160,71 @@ public class PipelineOrchestratorService : BackgroundService
             }
             else
             {
-                request.DeploymentStatus = DeploymentStatus.Failed;
-                request.UpdatedAt = DateTime.UtcNow;
-                await db.SaveChangesAsync(ct);
-
-                if (request.GitHubIssueNumber.HasValue)
+                // Deployment failed — auto-retry if under the limit
+                if (request.DeploymentRetryCount < MaxDeployRetries)
                 {
-                    await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber.Value,
-                        $"⚠️ **Deployment failed!** The GitHub Actions workflow for PR #{request.CopilotPrNumber} " +
-                        $"did not complete successfully (conclusion: {conclusion}).\n\n" +
-                        "Please check the workflow run and redeploy manually if needed.");
+                    request.DeploymentRetryCount++;
+                    _logger.LogInformation(
+                        "Deployment failed for request #{Id} (run {RunId}, conclusion: {Conclusion}). Auto-retrying ({Retry}/{Max})...",
+                        request.Id, runId, conclusion, request.DeploymentRetryCount, MaxDeployRetries);
 
-                    await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber.Value,
-                        "deploy:failed", "ef4444");
+                    var rerunOk = await _gitHubService.RerunFailedJobsAsync(owner, repo, runId);
+                    if (rerunOk)
+                    {
+                        request.DeploymentStatus = DeploymentStatus.InProgress;
+                        request.UpdatedAt = DateTime.UtcNow;
+                        await db.SaveChangesAsync(ct);
+
+                        if (request.GitHubIssueNumber.HasValue)
+                        {
+                            await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber.Value,
+                                $"🔄 **Deployment failed** (conclusion: {conclusion}). " +
+                                $"Auto-retrying failed jobs — attempt {request.DeploymentRetryCount}/{MaxDeployRetries}.");
+                        }
+                    }
+                    else
+                    {
+                        // Rerun API failed — try a fresh workflow_dispatch instead
+                        _logger.LogWarning("Rerun failed for run {RunId}. Trying workflow_dispatch instead.", runId);
+                        var apiOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-api.yml", baseBranch);
+                        var webOk = await _gitHubService.TriggerWorkflowDispatchAsync(owner, repo, "deploy-web.yml", baseBranch);
+
+                        if (apiOk || webOk)
+                        {
+                            request.DeploymentStatus = DeploymentStatus.Pending;
+                            request.UpdatedAt = DateTime.UtcNow;
+                            await db.SaveChangesAsync(ct);
+                        }
+                        else
+                        {
+                            request.DeploymentStatus = DeploymentStatus.Failed;
+                            request.UpdatedAt = DateTime.UtcNow;
+                            await db.SaveChangesAsync(ct);
+                        }
+                    }
                 }
+                else
+                {
+                    // Retries exhausted — mark as permanently failed
+                    request.DeploymentStatus = DeploymentStatus.Failed;
+                    request.UpdatedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct);
 
-                _logger.LogWarning("Deployment failed for request #{Id} (workflow run {RunId}, conclusion: {Conclusion})",
-                    request.Id, runId, conclusion);
+                    if (request.GitHubIssueNumber.HasValue)
+                    {
+                        await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber.Value,
+                            $"❌ **Deployment failed after {request.DeploymentRetryCount} retries** " +
+                            $"(conclusion: {conclusion}).\n\n" +
+                            "Please check the GitHub Actions workflow and redeploy manually from the Admin panel.");
+
+                        await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber.Value,
+                            "deploy:failed", "ef4444");
+                    }
+
+                    _logger.LogWarning(
+                        "Deployment permanently failed for request #{Id} after {Retries} retries (run {RunId}, conclusion: {Conclusion})",
+                        request.Id, request.DeploymentRetryCount, runId, conclusion);
+                }
             }
         }
         else if (status == "in_progress" || status == "queued" || status == "waiting")
@@ -511,6 +561,11 @@ public class PipelineOrchestratorService : BackgroundService
         var deploymentsInProgress = requests.Count(r => r.DeploymentStatus == DeploymentStatus.InProgress);
         var deploymentsSucceeded = requests.Count(r => r.DeploymentStatus == DeploymentStatus.Succeeded);
         var deploymentsFailed = requests.Count(r => r.DeploymentStatus == DeploymentStatus.Failed);
+        var deploymentsRetrying = requests.Count(r =>
+            r.DeploymentStatus == DeploymentStatus.InProgress && r.DeploymentRetryCount > 0);
+        var stagedForDeploy = requests.Count(r =>
+            r.CopilotStatus == CopilotImplementationStatus.ReviewApproved
+            && r.Status == RequestStatus.InProgress);
 
         var branchesDeleted = requests.Count(r => r.BranchDeleted);
         var branchesOutstanding = requests.Count(r =>
@@ -528,6 +583,8 @@ public class PipelineOrchestratorService : BackgroundService
             DeploymentsInProgress = deploymentsInProgress,
             DeploymentsSucceeded = deploymentsSucceeded,
             DeploymentsFailed = deploymentsFailed,
+            DeploymentsRetrying = deploymentsRetrying,
+            StagedForDeploy = stagedForDeploy,
             BranchesDeleted = branchesDeleted,
             BranchesOutstanding = branchesOutstanding
         };
@@ -548,6 +605,8 @@ public class PipelineHealthSummary
     public int DeploymentsInProgress { get; set; }
     public int DeploymentsSucceeded { get; set; }
     public int DeploymentsFailed { get; set; }
+    public int DeploymentsRetrying { get; set; }
+    public int StagedForDeploy { get; set; }
     public int BranchesDeleted { get; set; }
     public int BranchesOutstanding { get; set; }
 }
