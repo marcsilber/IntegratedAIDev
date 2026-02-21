@@ -20,15 +20,18 @@ public class OrchestratorController : ControllerBase
     private readonly AppDbContext _db;
     private readonly IConfiguration _configuration;
     private readonly ILogger<OrchestratorController> _logger;
+    private readonly ICodebaseService _codebaseService;
 
     public OrchestratorController(
         AppDbContext db,
         IConfiguration configuration,
-        ILogger<OrchestratorController> logger)
+        ILogger<OrchestratorController> logger,
+        ICodebaseService codebaseService)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
+        _codebaseService = codebaseService;
     }
 
     // ── Health ────────────────────────────────────────────────────────────
@@ -53,6 +56,105 @@ public class OrchestratorController : ControllerBase
             architectAgentEnabled = bool.Parse(_configuration["ArchitectAgent:Enabled"] ?? "true"),
             requests = new { total = totalRequests, triaged = triagedCount, architectReview = architectReviewCount, approved = approvedCount },
             architectReviews = totalArchReviews
+        });
+    }
+
+    /// <summary>
+    /// Deep diagnostic endpoint — tests each step of the Architect Agent pipeline
+    /// and reports exactly what fails.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("diagnose")]
+    public async Task<ActionResult> Diagnose()
+    {
+        var diagnostics = new List<object>();
+
+        // 1. Find candidates exactly as ArchitectAgentService does
+        var candidates = await _db.DevRequests
+            .Include(r => r.Comments)
+            .Include(r => r.Project)
+            .Include(r => r.AgentReviews)
+            .Include(r => r.ArchitectReviews)
+            .Where(r =>
+                (r.Status == RequestStatus.Triaged && r.ArchitectReviewCount == 0)
+                ||
+                (r.Status == RequestStatus.ArchitectReview
+                 && r.ArchitectReviewCount < 3
+                 && r.Comments.Any(c => !c.IsAgentComment
+                     && c.CreatedAt > (r.LastArchitectReviewAt ?? DateTime.MinValue)))
+            )
+            .OrderBy(r => r.CreatedAt)
+            .Take(5)
+            .ToListAsync();
+
+        foreach (var req in candidates)
+        {
+            var diag = new Dictionary<string, object?>
+            {
+                ["requestId"] = req.Id,
+                ["title"] = req.Title,
+                ["status"] = req.Status.ToString(),
+                ["architectReviewCount"] = req.ArchitectReviewCount,
+                ["agentReviewCount"] = req.AgentReviews.Count,
+                ["projectId"] = req.ProjectId,
+                ["projectName"] = req.Project?.DisplayName,
+                ["gitHubOwner"] = req.Project?.GitHubOwner,
+                ["gitHubRepo"] = req.Project?.GitHubRepo,
+            };
+
+            // Check PO review
+            var poReview = req.AgentReviews.OrderByDescending(r => r.CreatedAt).FirstOrDefault();
+            diag["hasPOReview"] = poReview != null;
+            diag["poDecision"] = poReview?.Decision;
+
+            if (req.Project == null)
+            {
+                diag["error"] = "No project linked";
+                diagnostics.Add(diag);
+                continue;
+            }
+
+            if (poReview == null)
+            {
+                diag["error"] = "No PO AgentReview found";
+                diagnostics.Add(diag);
+                continue;
+            }
+
+            // Test repo map
+            try
+            {
+                var repoMap = await _codebaseService.GetRepositoryMapAsync(
+                    req.Project.GitHubOwner, req.Project.GitHubRepo);
+                diag["repoMapLength"] = repoMap?.Length ?? 0;
+                diag["repoMapPreview"] = repoMap?.Length > 200 ? repoMap[..200] + "..." : repoMap;
+            }
+            catch (Exception ex)
+            {
+                diag["repoMapError"] = $"{ex.GetType().Name}: {ex.Message}";
+            }
+
+            diagnostics.Add(diag);
+        }
+
+        // Also check config
+        var ghToken = _configuration["GitHub:PersonalAccessToken"];
+        var endpoint = _configuration["GitHubModels:Endpoint"];
+        var model = _configuration["GitHubModels:ModelName"];
+
+        return Ok(new
+        {
+            timestamp = DateTime.UtcNow,
+            candidateCount = candidates.Count,
+            candidates = diagnostics,
+            config = new
+            {
+                hasGitHubToken = !string.IsNullOrEmpty(ghToken),
+                gitHubTokenLength = ghToken?.Length ?? 0,
+                llmEndpoint = endpoint ?? "(default)",
+                llmModel = model ?? "(default)",
+                architectEnabled = _configuration["ArchitectAgent:Enabled"]
+            }
         });
     }
 
