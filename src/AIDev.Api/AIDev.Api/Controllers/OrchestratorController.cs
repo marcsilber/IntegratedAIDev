@@ -219,6 +219,7 @@ public class OrchestratorController : ControllerBase
                 .Include(r => r.Project)
                 .Include(r => r.AgentReviews)
                 .Include(r => r.ArchitectReviews)
+                .Include(r => r.Attachments)
                 .FirstOrDefaultAsync(r => r.Id == requestId);
 
             if (request == null)
@@ -244,7 +245,8 @@ public class OrchestratorController : ControllerBase
                 => await _codebaseService.GetFileContentsAsync(owner, repo, files);
 
             // 5. Call architect LLM
-            var result = await _architectLlmService.AnalyseRequestAsync(request, poReview, repoMap, FileReader);
+            var result = await _architectLlmService.AnalyseRequestAsync(
+                request, poReview, repoMap, FileReader, null, request.Attachments?.ToList());
             steps.Add(new
             {
                 step = "architect_llm",
