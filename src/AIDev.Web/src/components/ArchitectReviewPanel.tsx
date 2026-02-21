@@ -455,7 +455,8 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
             value={feedbackText}
             onChange={(e) => setFeedbackText(e.target.value)}
             placeholder="Describe what changes you'd like to the solution proposal..."
-            style={{ width: "100%", marginBottom: "0.5rem" }}
+            className="themed-textarea"
+            style={{ marginBottom: "0.5rem" }}
           />
           <div style={{ display: "flex", gap: "0.5rem" }}>
             <button

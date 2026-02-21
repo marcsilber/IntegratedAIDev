@@ -186,6 +186,7 @@ export default function RequestList() {
                         href={r.gitHubIssueUrl}
                         target="_blank"
                         rel="noopener noreferrer"
+                        className="github-link"
                       >
                         #{r.gitHubIssueNumber}
                       </a>
