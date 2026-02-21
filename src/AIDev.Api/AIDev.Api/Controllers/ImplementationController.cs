@@ -87,6 +87,75 @@ public class ImplementationController : ControllerBase
     }
 
     /// <summary>
+    /// Reject a completed implementation, resetting the request to Approved status
+    /// so it can be re-triggered. Does not immediately re-trigger Copilot.
+    /// </summary>
+    [HttpPost("reject/{requestId}")]
+    public async Task<ActionResult> RejectImplementation(int requestId, [FromBody] RejectImplementationDto? dto = null)
+    {
+        var request = await _db.DevRequests
+            .Include(r => r.Project)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+
+        if (request == null)
+            return NotFound($"Request #{requestId} not found");
+
+        // Allow rejecting requests that are Done, PrMerged, or Failed
+        if (request.Status != RequestStatus.Done
+            && request.Status != RequestStatus.InProgress
+            && request.CopilotStatus != CopilotImplementationStatus.PrMerged
+            && request.CopilotStatus != CopilotImplementationStatus.Failed)
+        {
+            return BadRequest($"Request #{requestId} cannot be rejected (Status: {request.Status}, CopilotStatus: {request.CopilotStatus})");
+        }
+
+        var previousPr = request.CopilotPrNumber;
+        var reason = dto?.Reason ?? "Implementation rejected by user";
+
+        // Reset Copilot fields — back to Approved so it can be re-triggered
+        request.CopilotSessionId = null;
+        request.CopilotPrNumber = null;
+        request.CopilotPrUrl = null;
+        request.CopilotStatus = null;
+        request.CopilotTriggeredAt = null;
+        request.CopilotCompletedAt = null;
+        request.CopilotBranchName = null;
+        request.BranchDeleted = false;
+        request.DeploymentStatus = DeploymentStatus.None;
+        request.DeployedAt = null;
+        request.DeploymentRetryCount = 0;
+        request.Status = RequestStatus.Approved;
+        request.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        // Post comment on GitHub Issue
+        var owner = request.Project?.GitHubOwner ?? _configuration["GitHub:Owner"] ?? "";
+        var repo = request.Project?.GitHubRepo ?? _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+
+        if (request.GitHubIssueNumber.HasValue)
+        {
+            var prRef = previousPr.HasValue ? $" (PR #{previousPr.Value})" : "";
+            await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber.Value,
+                $"🔙 **Implementation rejected.**{prRef}\n\n" +
+                $"**Reason:** {reason}\n\n" +
+                "Status has been reset to Approved. The request can be re-triggered from the dashboard.");
+
+            // Update labels
+            await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber.Value, "copilot:complete");
+            await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber.Value, "copilot:failed");
+            await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber.Value, "deployed:uat");
+            await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber.Value,
+                "agent:approved-solution", "10b981");
+        }
+
+        _logger.LogInformation(
+            "Implementation rejected for request #{RequestId} — reset to Approved. Reason: {Reason}",
+            requestId, reason);
+
+        return Ok(new { message = $"Request #{requestId} reset to Approved", reason });
+    }
+
+    /// <summary>
     /// Re-trigger Copilot for a request that previously failed.
     /// </summary>
     [HttpPost("re-trigger/{requestId}")]

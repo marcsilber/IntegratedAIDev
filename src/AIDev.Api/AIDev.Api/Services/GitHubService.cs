@@ -50,6 +50,13 @@ public interface IGitHubService
     Task<bool> TriggerWorkflowDispatchAsync(string owner, string repo, string workflowFileName, string branch = "main");
     /// <summary>Get the most recent workflow runs for a specific workflow file.</summary>
     Task<List<(long runId, string status, string conclusion, DateTime createdAt)>> GetWorkflowRunsByNameAsync(string owner, string repo, string workflowFileName, int count = 5);
+    /// <summary>
+    /// Check the status of the Copilot coding agent run for a specific session.
+    /// Queries GitHub Actions runs triggered via "dynamic" event (Copilot's trigger type)
+    /// and matches by creation time relative to the session trigger.
+    /// </summary>
+    Task<(string conclusion, long runId, string headBranch)?> GetCopilotRunStatusAsync(
+        string owner, string repo, DateTime triggeredAfterUtc, DateTime triggeredBeforeUtc);
 }
 
 public class GitHubService : IGitHubService
@@ -873,6 +880,57 @@ public class GitHubService : IGitHubService
         }
         return results;
     }
+
+    public async Task<(string conclusion, long runId, string headBranch)?> GetCopilotRunStatusAsync(
+        string owner, string repo, DateTime triggeredAfterUtc, DateTime triggeredBeforeUtc)
+    {
+        try
+        {
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            // Query GitHub Actions runs triggered via "dynamic" event (Copilot coding agent)
+            var url = $"https://api.github.com/repos/{owner}/{repo}/actions/runs?event=dynamic&per_page=20";
+            var response = await http.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var runs = doc.RootElement.GetProperty("workflow_runs");
+
+            foreach (var run in runs.EnumerateArray())
+            {
+                var createdAt = run.GetProperty("created_at").GetDateTime();
+                var status = run.GetProperty("status").GetString() ?? "";
+                var headBranch = run.GetProperty("head_branch").GetString() ?? "";
+
+                // Match runs created within the session trigger window
+                if (createdAt >= triggeredAfterUtc && createdAt <= triggeredBeforeUtc)
+                {
+                    if (status == "completed")
+                    {
+                        var conclusion = run.TryGetProperty("conclusion", out var c)
+                            ? c.GetString() ?? "unknown"
+                            : "unknown";
+                        var runId = run.GetProperty("id").GetInt64();
+                        return (conclusion, runId, headBranch);
+                    }
+                    else
+                    {
+                        // Run is still in progress — session is active
+                        return null;
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to check Copilot run status for {Owner}/{Repo}", owner, repo);
+        }
+
+        return null;
+    }
 }
 
 /// <summary>
@@ -1049,5 +1107,12 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Returning empty workflow runs.");
         return Task.FromResult(new List<(long, string, string, DateTime)>());
+    }
+
+    public Task<(string conclusion, long runId, string headBranch)?> GetCopilotRunStatusAsync(
+        string owner, string repo, DateTime triggeredAfterUtc, DateTime triggeredBeforeUtc)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping Copilot run status check.");
+        return Task.FromResult<(string, long, string)?>(null);
     }
 }

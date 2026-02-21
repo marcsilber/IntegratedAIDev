@@ -226,6 +226,45 @@ public class CodeReviewAgentService : BackgroundService
 
         if (AutoMerge)
         {
+            // Check if the Copilot workflow run completed successfully.
+            // If it was cancelled or failed, do NOT auto-merge — the implementation may be incomplete.
+            if (request.CopilotTriggeredAt.HasValue)
+            {
+                var triggerTime = request.CopilotTriggeredAt.Value;
+                var runStatus = await _gitHubService.GetCopilotRunStatusAsync(
+                    owner, repo,
+                    triggerTime.AddSeconds(-30),
+                    triggerTime.AddMinutes(5));
+
+                if (runStatus != null && runStatus.Value.conclusion is "cancelled" or "failure")
+                {
+                    var (conclusion, runId, headBranch) = runStatus.Value;
+                    _logger.LogWarning(
+                        "CodeReview: Copilot run #{RunId} for request #{RequestId} has conclusion '{Conclusion}'. Blocking auto-merge.",
+                        runId, request.Id, conclusion);
+
+                    request.CopilotStatus = CopilotImplementationStatus.Failed;
+                    request.CopilotCompletedAt = DateTime.UtcNow;
+                    request.Status = RequestStatus.Approved; // Reset to Approved so it can be re-triggered
+                    request.CopilotSessionId = null;         // Clear session so re-trigger is possible
+                    request.UpdatedAt = DateTime.UtcNow;
+                    await db.SaveChangesAsync(ct);
+
+                    await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                        "review:approved");
+                    await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                        "copilot:failed", "ef4444");
+
+                    await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                        $"❌ **Auto-merge blocked.** The Copilot workflow run was **{conclusion}** (Run #{runId}), " +
+                        "indicating the implementation may be incomplete.\n\n" +
+                        $"Code review passed (quality {result.QualityScore}/10) but the PR will NOT be merged automatically.\n\n" +
+                        "**Next steps:** A human can review and manually merge the PR, or re-trigger Copilot from the dashboard.");
+
+                    return;
+                }
+            }
+
             // In Staged mode, approve but do NOT merge — wait for human to trigger deploy
             if (IsStagedMode)
             {

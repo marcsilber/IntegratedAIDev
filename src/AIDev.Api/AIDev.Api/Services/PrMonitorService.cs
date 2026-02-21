@@ -138,12 +138,58 @@ public class PrMonitorService : BackgroundService
             }
             else
             {
-                // Check for timeout — if Copilot hasn't produced a PR after a reasonable time
+                // No PR found — check if Copilot's workflow run has completed (cancelled/failed)
                 var elapsed = DateTime.UtcNow - (request.CopilotTriggeredAt ?? DateTime.UtcNow);
-                if (elapsed > TimeSpan.FromHours(2))
+
+                // After a brief startup window, actively check the Copilot run status
+                if (elapsed > TimeSpan.FromMinutes(3))
                 {
-                    _logger.LogWarning("Copilot session for request #{Id} timed out after {Hours:F1}h",
-                        request.Id, elapsed.TotalHours);
+                    var triggerTime = request.CopilotTriggeredAt ?? DateTime.UtcNow;
+                    var runStatus = await _gitHubService.GetCopilotRunStatusAsync(
+                        owner, repo,
+                        triggerTime.AddSeconds(-30),   // small window before trigger
+                        triggerTime.AddMinutes(5));    // Copilot run should start within minutes
+
+                    if (runStatus != null)
+                    {
+                        var (conclusion, runId, headBranch) = runStatus.Value;
+
+                        if (conclusion is "cancelled" or "failure")
+                        {
+                            _logger.LogWarning(
+                                "Copilot run #{RunId} for request #{Id} has conclusion '{Conclusion}' (branch: {Branch}) — marking Failed",
+                                runId, request.Id, conclusion, headBranch);
+
+                            request.CopilotStatus = CopilotImplementationStatus.Failed;
+                            request.CopilotCompletedAt = DateTime.UtcNow;
+                            request.CopilotBranchName = headBranch;
+                            request.UpdatedAt = DateTime.UtcNow;
+                            await db.SaveChangesAsync(ct);
+
+                            await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                                "copilot:implementing");
+                            await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                                "copilot:failed", "ef4444");
+
+                            var reasonText = conclusion == "cancelled"
+                                ? "Copilot cancelled its own workflow run without creating a PR."
+                                : "Copilot's workflow run failed.";
+
+                            await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                                $"❌ **Copilot session {conclusion}.** {reasonText}\n\n" +
+                                $"**Run ID:** {runId} | **Branch:** `{headBranch}`\n\n" +
+                                "A human can re-trigger implementation from the AIDev dashboard.");
+
+                            return;
+                        }
+                    }
+                }
+
+                // Fallback: check for hard timeout
+                if (elapsed > TimeSpan.FromMinutes(30))
+                {
+                    _logger.LogWarning("Copilot session for request #{Id} timed out after {Minutes:F0}m",
+                        request.Id, elapsed.TotalMinutes);
 
                     request.CopilotStatus = CopilotImplementationStatus.Failed;
                     request.CopilotCompletedAt = DateTime.UtcNow;
@@ -156,7 +202,7 @@ public class PrMonitorService : BackgroundService
                         "copilot:failed", "ef4444");
 
                     await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber!.Value,
-                        "❌ **Copilot session timed out.** No PR was created within the expected timeframe.\n\n" +
+                        "❌ **Copilot session timed out.** No PR was created within 30 minutes.\n\n" +
                         "A human can re-trigger implementation from the AIDev dashboard.");
                 }
                 else

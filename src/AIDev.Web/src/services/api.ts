@@ -644,6 +644,14 @@ export async function reTriggerImplementation(
   return data;
 }
 
+export async function rejectImplementation(
+  requestId: number,
+  reason?: string
+): Promise<{ message: string; reason: string }> {
+  const { data } = await api.post(`/implementation/reject/${requestId}`, { reason });
+  return data;
+}
+
 export async function getImplementationStatus(
   requestId: number
 ): Promise<ImplementationStatus> {

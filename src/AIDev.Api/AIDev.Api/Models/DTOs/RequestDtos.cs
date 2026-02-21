@@ -322,6 +322,11 @@ public class ImplementationTriggerResponseDto
     public DateTime TriggeredAt { get; set; }
 }
 
+/// <summary>
+/// Payload for rejecting a completed implementation.
+/// </summary>
+public record RejectImplementationDto(string? Reason);
+
 public class ImplementationConfigDto
 {
     public bool Enabled { get; set; }

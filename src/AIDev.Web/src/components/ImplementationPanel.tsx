@@ -6,6 +6,7 @@ import type {
 import {
   triggerImplementation,
   reTriggerImplementation,
+  rejectImplementation,
 } from "../services/api";
 
 interface ImplementationPanelProps {
@@ -33,6 +34,12 @@ const statusConfig: Record<
   },
   PrOpened: {
     label: "PR Ready for Review",
+    color: "#10b981",
+    bg: "rgba(16, 185, 129, 0.15)",
+    icon: "✅",
+  },
+  ReviewApproved: {
+    label: "Review Approved — Awaiting Deploy",
     color: "#10b981",
     bg: "rgba(16, 185, 129, 0.15)",
     icon: "✅",
@@ -86,6 +93,25 @@ export default function ImplementationPanel({
         err instanceof Error
           ? err.message
           : "Failed to re-trigger implementation";
+      setError(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async () => {
+    const reason = prompt("Reason for rejecting this implementation:");
+    if (reason === null) return; // User cancelled
+    setLoading(true);
+    setError(null);
+    try {
+      await rejectImplementation(requestId, reason || "Implementation did not meet requirements");
+      onStatusChange();
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : "Failed to reject implementation";
       setError(message);
     } finally {
       setLoading(false);
@@ -274,6 +300,38 @@ export default function ImplementationPanel({
               </span>
             )}
           </div>
+
+          {/* Reject button for completed implementations */}
+          {(copilotStatus === "PrMerged" || (requestStatus === "Done" && copilotStatus)) && (
+            <div style={{ marginTop: 12 }}>
+              <p
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: 13,
+                  margin: "0 0 8px 0",
+                }}
+              >
+                If this implementation is incorrect, you can reject it to reset
+                the request back to Approved.
+              </p>
+              <button
+                onClick={handleReject}
+                disabled={loading}
+                style={{
+                  background: "var(--danger)",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 6,
+                  padding: "8px 16px",
+                  cursor: loading ? "not-allowed" : "pointer",
+                  opacity: loading ? 0.7 : 1,
+                  fontWeight: 500,
+                }}
+              >
+                {loading ? "Rejecting..." : "❌ Reject Implementation"}
+              </button>
+            </div>
+          )}
 
           {/* Re-trigger button for failed */}
           {copilotStatus === "Failed" && (
