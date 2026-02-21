@@ -85,7 +85,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
         border: `2px solid ${decisionColors[review.decision]}`,
         borderRadius: "8px",
         padding: "1.25rem",
-        backgroundColor: "#f8fafc",
+        backgroundColor: "var(--surface)",
         marginBottom: "1rem",
       }}
     >
@@ -149,10 +149,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fff",
+              backgroundColor: "var(--bg)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #e2e8f0",
+              border: "1px solid var(--border)",
             }}
           >
             {review.impactedFiles.map((f, i) => (
@@ -162,7 +162,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
                   padding: "0.3rem 0",
                   borderBottom:
                     i < review.impactedFiles.length - 1
-                      ? "1px solid #f1f5f9"
+                      ? "1px solid var(--border)"
                       : "none",
                 }}
               >
@@ -203,10 +203,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fff",
+              backgroundColor: "var(--bg)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #e2e8f0",
+              border: "1px solid var(--border)",
             }}
           >
             {review.newFiles.map((f, i) => (
@@ -236,10 +236,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fef3c7",
+              backgroundColor: "rgba(255, 176, 32, 0.1)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #fcd34d",
+              border: "1px solid rgba(255, 176, 32, 0.3)",
             }}
           >
             <p>{review.dataMigration.description}</p>
@@ -263,10 +263,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fef2f2",
+              backgroundColor: "rgba(239, 68, 68, 0.1)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #fecaca",
+              border: "1px solid rgba(239, 68, 68, 0.3)",
             }}
           >
             <ul style={{ margin: 0, paddingLeft: "1.25rem" }}>
@@ -287,10 +287,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fff",
+              backgroundColor: "var(--bg)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #e2e8f0",
+              border: "1px solid var(--border)",
             }}
           >
             {review.dependencyChanges.map((d, i) => (
@@ -316,10 +316,10 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           <div
             style={{
               marginTop: "0.5rem",
-              backgroundColor: "#fff",
+              backgroundColor: "var(--bg)",
               borderRadius: "4px",
               padding: "0.75rem",
-              border: "1px solid #e2e8f0",
+              border: "1px solid var(--border)",
             }}
           >
             {review.risks.map((r, i) => (
@@ -329,7 +329,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
                   padding: "0.4rem 0",
                   borderBottom:
                     i < review.risks.length - 1
-                      ? "1px solid #f1f5f9"
+                      ? "1px solid var(--border)"
                       : "none",
                 }}
               >
@@ -395,9 +395,9 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           style={{
             marginBottom: "1rem",
             padding: "0.75rem",
-            backgroundColor: "#eff6ff",
+            backgroundColor: "rgba(99, 102, 241, 0.1)",
             borderRadius: "4px",
-            border: "1px solid #bfdbfe",
+            border: "1px solid rgba(99, 102, 241, 0.3)",
           }}
         >
           <strong>Human Feedback:</strong>
@@ -483,7 +483,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
         className="muted"
         style={{
           fontSize: "0.75rem",
-          borderTop: "1px solid #e2e8f0",
+          borderTop: "1px solid var(--border)",
           paddingTop: "0.5rem",
           display: "flex",
           gap: "1rem",

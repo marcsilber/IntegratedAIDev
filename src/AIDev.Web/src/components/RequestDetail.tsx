@@ -346,7 +346,7 @@ export default function RequestDetail() {
               }`,
               borderRadius: "8px",
               padding: "1rem",
-              backgroundColor: "#f8fafc"
+              backgroundColor: "var(--surface)"
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
                 <span className="badge" style={{
@@ -492,7 +492,7 @@ export default function RequestDetail() {
             <div className="comments-list">
               {request.comments.map((c) => (
                 <div key={c.id} className={`comment ${c.isAgentComment ? "comment-agent" : ""}`}
-                  style={c.isAgentComment ? { borderLeft: "3px solid #8b5cf6", backgroundColor: "#f5f3ff" } : {}}>
+                  style={c.isAgentComment ? { borderLeft: "3px solid #8b5cf6", backgroundColor: "var(--bg)" } : {}}>
                   <div className="comment-header">
                     <strong>
                       {c.isAgentComment && "🤖 "}

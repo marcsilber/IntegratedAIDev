@@ -22,31 +22,31 @@ const statusConfig: Record<
   Pending: {
     label: "Copilot Starting...",
     color: "#f59e0b",
-    bg: "#fef3c7",
+    bg: "rgba(255, 176, 32, 0.15)",
     icon: "⏳",
   },
   Working: {
     label: "Copilot Implementing",
     color: "#6366f1",
-    bg: "#e0e7ff",
+    bg: "rgba(99, 102, 241, 0.15)",
     icon: "🔨",
   },
   PrOpened: {
     label: "PR Ready for Review",
     color: "#10b981",
-    bg: "#d1fae5",
+    bg: "rgba(16, 185, 129, 0.15)",
     icon: "✅",
   },
   PrMerged: {
     label: "Implementation Complete",
     color: "#059669",
-    bg: "#a7f3d0",
+    bg: "rgba(5, 150, 105, 0.15)",
     icon: "🎉",
   },
   Failed: {
     label: "Implementation Failed",
     color: "#ef4444",
-    bg: "#fee2e2",
+    bg: "rgba(239, 68, 68, 0.15)",
     icon: "❌",
   },
 };
@@ -102,11 +102,11 @@ export default function ImplementationPanel({
   return (
     <div
       style={{
-        border: "1px solid #e5e7eb",
+        border: "1px solid var(--border)",
         borderRadius: 8,
         padding: 16,
         marginTop: 16,
-        background: "#f9fafb",
+        background: "var(--surface)",
       }}
     >
       <h4 style={{ margin: "0 0 12px 0", fontSize: 16 }}>
@@ -116,7 +116,7 @@ export default function ImplementationPanel({
       {/* Ready to trigger */}
       {isReadyToTrigger && (
         <div>
-          <p style={{ color: "#6b7280", margin: "0 0 12px 0" }}>
+          <p style={{ color: "var(--text-muted)", margin: "0 0 12px 0" }}>
             This request has an approved architecture. Ready for Copilot to
             implement.
           </p>
@@ -181,7 +181,7 @@ export default function ImplementationPanel({
                   animation: "spin 1s linear infinite",
                 }}
               />
-              <span style={{ color: "#6b7280", fontSize: 13 }}>
+              <span style={{ color: "var(--text-muted)", fontSize: 13 }}>
                 {copilotStatus === "Pending"
                   ? "Copilot is starting up..."
                   : "Copilot is implementing the approved solution..."}
@@ -195,9 +195,9 @@ export default function ImplementationPanel({
               style={{
                 margin: "12px 0",
                 padding: 12,
-                background: "white",
+                background: "var(--bg)",
                 borderRadius: 6,
-                border: "1px solid #e5e7eb",
+                border: "1px solid var(--border)",
               }}
             >
               <span style={{ fontSize: 14 }}>🔗 Pull Request </span>
@@ -247,7 +247,7 @@ export default function ImplementationPanel({
               gap: 16,
               flexWrap: "wrap",
               fontSize: 12,
-              color: "#6b7280",
+              color: "var(--text-muted)",
               marginTop: 8,
             }}
           >
@@ -315,7 +315,7 @@ export default function ImplementationPanel({
           style={{
             marginTop: 8,
             padding: 8,
-            background: "#fee2e2",
+            background: "rgba(239, 68, 68, 0.15)",
             color: "#ef4444",
             borderRadius: 4,
             fontSize: 13,

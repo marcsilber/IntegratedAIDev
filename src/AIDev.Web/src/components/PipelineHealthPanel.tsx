@@ -55,7 +55,7 @@ export default function PipelineHealthPanel() {
           padding: "1rem 1.25rem",
           borderRadius: "8px",
           border: hasIssues ? "2px solid #f59e0b" : "1px solid #10b981",
-          backgroundColor: hasIssues ? "#fffbeb" : "#f0fdf4",
+          backgroundColor: hasIssues ? "rgba(255, 176, 32, 0.1)" : "rgba(34, 197, 94, 0.1)",
           marginBottom: "1rem",
           display: "flex",
           alignItems: "center",
@@ -66,7 +66,7 @@ export default function PipelineHealthPanel() {
           <strong style={{ fontSize: "1.1rem" }}>
             {hasIssues ? "⚠️ Pipeline Attention Needed" : "✅ Pipeline Healthy"}
           </strong>
-          <div style={{ fontSize: "0.85rem", color: "#475569", marginTop: "0.25rem" }}>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginTop: "0.25rem" }}>
             {health.totalStalled > 0 && (
               <span style={{ marginRight: "1rem" }}>
                 {health.totalStalled} stalled request{health.totalStalled !== 1 ? "s" : ""}
@@ -149,9 +149,9 @@ export default function PipelineHealthPanel() {
                           borderRadius: "4px",
                           fontSize: "0.75rem",
                           fontWeight: 600,
-                          backgroundColor: s.severity === "Critical" ? "#fef2f2" : "#fffbeb",
-                          color: s.severity === "Critical" ? "#dc2626" : "#d97706",
-                          border: `1px solid ${s.severity === "Critical" ? "#fca5a5" : "#fcd34d"}`,
+                          backgroundColor: s.severity === "Critical" ? "rgba(239, 68, 68, 0.15)" : "rgba(255, 176, 32, 0.15)",
+                          color: s.severity === "Critical" ? "#ef4444" : "#FFB020",
+                          border: `1px solid ${s.severity === "Critical" ? "rgba(239, 68, 68, 0.4)" : "rgba(255, 176, 32, 0.4)"}`,
                         }}
                       >
                         {s.severity}
@@ -207,20 +207,20 @@ export default function PipelineHealthPanel() {
                           fontWeight: 600,
                           backgroundColor:
                             d.deploymentStatus === "Succeeded"
-                              ? "#f0fdf4"
+                              ? "rgba(34, 197, 94, 0.15)"
                               : d.deploymentStatus === "Failed"
-                              ? "#fef2f2"
+                              ? "rgba(239, 68, 68, 0.15)"
                               : d.deploymentStatus === "InProgress"
-                              ? "#eff6ff"
-                              : "#f8fafc",
+                              ? "rgba(99, 102, 241, 0.15)"
+                              : "var(--surface)",
                           color:
                             d.deploymentStatus === "Succeeded"
-                              ? "#16a34a"
+                              ? "#22c55e"
                               : d.deploymentStatus === "Failed"
-                              ? "#dc2626"
+                              ? "#ef4444"
                               : d.deploymentStatus === "InProgress"
-                              ? "#2563eb"
-                              : "#64748b",
+                              ? "#6366f1"
+                              : "var(--text-muted)",
                         }}
                       >
                         {d.deploymentStatus === "Succeeded"
@@ -264,7 +264,7 @@ export default function PipelineHealthPanel() {
       {/* Quick Stats Grid */}
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-number" style={{ color: health.totalStalled > 0 ? "#d97706" : "#10b981" }}>
+          <div className="stat-number" style={{ color: health.totalStalled > 0 ? "var(--warning)" : "#10b981" }}>
             {health.totalStalled}
           </div>
           <div className="stat-label">Stalled</div>
