@@ -24,7 +24,7 @@ public class LlmClientFactory : ILlmClientFactory
     {
         var endpoint = configuration["GitHubModels:Endpoint"]
             ?? "https://models.inference.ai.azure.com";
-        ModelName = configuration["GitHubModels:ModelName"] ?? "gpt-4o";
+        ModelName = configuration["GitHubModels:ModelName"] ?? "gpt-4o-mini";
 
         var apiKey = configuration["GitHub:PersonalAccessToken"]
             ?? throw new InvalidOperationException(
@@ -34,8 +34,7 @@ public class LlmClientFactory : ILlmClientFactory
             new ApiKeyCredential(apiKey),
             new OpenAIClientOptions
             {
-                Endpoint = new Uri(endpoint),
-                NetworkTimeout = TimeSpan.FromSeconds(120)
+                Endpoint = new Uri(endpoint)
             });
 
         _client = openAiClient.GetChatClient(ModelName);
