@@ -34,6 +34,10 @@ public interface IGitHubService
     Task<bool> RequestChangesOnPullRequestAsync(string owner, string repo, int prNumber, string body);
     /// <summary>Mark a draft PR as ready for review.</summary>
     Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber);
+    /// <summary>Update a PR branch by merging the base branch into it. Returns true if successful, false if conflicts exist.</summary>
+    Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber);
+    /// <summary>Check how many commits the PR branch is behind the base branch.</summary>
+    Task<int> GetBehindByCountAsync(string owner, string repo, string baseBranch, string headBranch);
 }
 
 public class GitHubService : IGitHubService
@@ -513,6 +517,59 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task<int> GetBehindByCountAsync(string owner, string repo, string baseBranch, string headBranch)
+    {
+        try
+        {
+            var comparison = await _client.Repository.Commit.Compare(owner, repo, headBranch, baseBranch);
+            // comparison.AheadBy = how many commits base is ahead of head = how far behind head is
+            return comparison.AheadBy;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to compare branches {Base}..{Head} in {Owner}/{Repo}", baseBranch, headBranch, owner, repo);
+            return -1; // Signal error
+        }
+    }
+
+    public async Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber)
+    {
+        try
+        {
+            // Use the GitHub REST API: PUT /repos/{owner}/{repo}/pulls/{pull_number}/update-branch
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+
+            var url = $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}/update-branch";
+            var body = new StringContent("{}", Encoding.UTF8, "application/json");
+            var response = await http.PutAsync(url, body);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInformation("Updated PR #{PrNumber} branch with latest base branch in {Owner}/{Repo}", prNumber, owner, repo);
+                return true;
+            }
+
+            var responseBody = await response.Content.ReadAsStringAsync();
+            _logger.LogWarning("Failed to update PR #{PrNumber} branch: {Status} — {Body}", prNumber, response.StatusCode, responseBody);
+
+            // 422 typically means merge conflicts
+            if ((int)response.StatusCode == 422)
+            {
+                _logger.LogWarning("PR #{PrNumber} has merge conflicts with base branch", prNumber);
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update PR #{PrNumber} branch in {Owner}/{Repo}", prNumber, owner, repo);
+            return false;
+        }
+    }
+
     public async Task<bool> MergePullRequestAsync(string owner, string repo, int prNumber, string commitMessage)
     {
         try
@@ -720,5 +777,17 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping mark ready.");
         return Task.FromResult(false);
+    }
+
+    public Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping branch update.");
+        return Task.FromResult(false);
+    }
+
+    public Task<int> GetBehindByCountAsync(string owner, string repo, string baseBranch, string headBranch)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping branch comparison.");
+        return Task.FromResult(0);
     }
 }

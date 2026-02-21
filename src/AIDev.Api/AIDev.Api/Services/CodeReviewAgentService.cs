@@ -190,7 +190,7 @@ public class CodeReviewAgentService : BackgroundService
         // 6. Act on the review decision
         if (result.Decision == CodeReviewDecision.Approved && result.QualityScore >= MinQualityScore)
         {
-            await HandleApprovedPrAsync(request, prNumber, result, owner, repo, db, ct);
+            await HandleApprovedPrAsync(request, prNumber, result, architectReview, diff, filesChanged, linesAdded, linesRemoved, owner, repo, db, ct);
         }
         else
         {
@@ -200,6 +200,7 @@ public class CodeReviewAgentService : BackgroundService
 
     private async Task HandleApprovedPrAsync(
         DevRequest request, int prNumber, CodeReviewResult result,
+        ArchitectReview architectReview, string diff, int filesChanged, int linesAdded, int linesRemoved,
         string owner, string repo, AppDbContext db, CancellationToken ct)
     {
         var reviewBody = FormatApprovalComment(result);
@@ -228,6 +229,110 @@ public class CodeReviewAgentService : BackgroundService
             request.CopilotStatus = CopilotImplementationStatus.ReviewApproved;
             request.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(ct);
+
+            // --- SAFE MERGE: Ensure branch is up-to-date with main before merging ---
+            // This prevents a later PR from overwriting an earlier PR's changes.
+            if (!string.IsNullOrEmpty(request.CopilotBranchName))
+            {
+                var behindBy = await _gitHubService.GetBehindByCountAsync(owner, repo, "main", request.CopilotBranchName);
+                if (behindBy > 0)
+                {
+                    _logger.LogInformation(
+                        "CodeReview: PR #{PrNumber} branch '{Branch}' is {BehindBy} commit(s) behind main. Updating branch before merge.",
+                        prNumber, request.CopilotBranchName, behindBy);
+
+                    var updated = await _gitHubService.UpdatePrBranchAsync(owner, repo, prNumber);
+                    if (!updated)
+                    {
+                        // Branch update failed — likely merge conflicts. Request changes instead of forcing merge.
+                        _logger.LogWarning(
+                            "CodeReview: PR #{PrNumber} branch update failed (likely merge conflicts). Requesting manual resolution.",
+                            prNumber);
+
+                        request.CopilotStatus = CopilotImplementationStatus.PrOpened;
+                        request.UpdatedAt = DateTime.UtcNow;
+                        await db.SaveChangesAsync(ct);
+
+                        await _gitHubService.RequestChangesOnPullRequestAsync(owner, repo, prNumber,
+                            "## ⚠️ Merge Conflict Detected\n\n" +
+                            "This PR's branch is behind `main` and could not be automatically updated. " +
+                            "Another PR was likely merged first, causing conflicts.\n\n" +
+                            "**Please rebase or merge `main` into this branch and resolve conflicts before this PR can be merged.**\n\n" +
+                            $"The branch is **{behindBy} commit(s) behind** `main`.\n\n" +
+                            "---\n*Detected by AIDev Code Review Agent*");
+
+                        await _gitHubService.AddLabelAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                            "merge-conflict", "d93f0b");
+
+                        await _gitHubService.PostAgentCommentAsync(owner, repo, request.GitHubIssueNumber!.Value,
+                            $"⚠️ **PR #{prNumber} has merge conflicts** with `main`. Code review passed (quality {result.QualityScore}/10) " +
+                            "but the branch needs to be updated before merging. The Copilot agent has been asked to resolve the conflicts.");
+
+                        return;
+                    }
+
+                    // Branch updated — wait for GitHub to process the merge commit
+                    _logger.LogInformation("CodeReview: PR #{PrNumber} branch updated successfully. Waiting for GitHub to settle.", prNumber);
+                    await Task.Delay(TimeSpan.FromSeconds(10), ct);
+
+                    // Re-fetch the diff and re-review after update to ensure no regressions
+                    var updatedDiff = await _gitHubService.GetPrDiffAsync(owner, repo, prNumber);
+                    if (!string.IsNullOrWhiteSpace(updatedDiff) && updatedDiff != diff)
+                    {
+                        _logger.LogInformation("CodeReview: PR #{PrNumber} diff changed after branch update. Re-reviewing.", prNumber);
+                        var updatedPr = await _gitHubService.GetPullRequestAsync(owner, repo, prNumber);
+                        var reReviewResult = await _codeReviewLlmService.ReviewPrAsync(
+                            request, architectReview!, updatedDiff,
+                            updatedPr?.ChangedFiles ?? filesChanged,
+                            updatedPr?.Additions ?? linesAdded,
+                            updatedPr?.Deletions ?? linesRemoved);
+
+                        if (reReviewResult.Decision != CodeReviewDecision.Approved || reReviewResult.QualityScore < MinQualityScore)
+                        {
+                            _logger.LogWarning(
+                                "CodeReview: PR #{PrNumber} failed re-review after branch update (Decision={Decision}, Score={Score}). Requesting changes.",
+                                prNumber, reReviewResult.Decision, reReviewResult.QualityScore);
+
+                            // Save the re-review
+                            var reReview = new CodeReview
+                            {
+                                DevRequestId = request.Id,
+                                PrNumber = prNumber,
+                                Decision = reReviewResult.Decision,
+                                Summary = "[Post-rebase re-review] " + reReviewResult.Summary,
+                                DesignCompliance = reReviewResult.DesignCompliance,
+                                DesignComplianceNotes = reReviewResult.DesignComplianceNotes,
+                                SecurityPass = reReviewResult.SecurityPass,
+                                SecurityNotes = reReviewResult.SecurityNotes,
+                                CodingStandardsPass = reReviewResult.CodingStandardsPass,
+                                CodingStandardsNotes = reReviewResult.CodingStandardsNotes,
+                                QualityScore = reReviewResult.QualityScore,
+                                FilesChanged = updatedPr?.ChangedFiles ?? filesChanged,
+                                LinesAdded = updatedPr?.Additions ?? linesAdded,
+                                LinesRemoved = updatedPr?.Deletions ?? linesRemoved,
+                                PromptTokens = reReviewResult.PromptTokens,
+                                CompletionTokens = reReviewResult.CompletionTokens,
+                                ModelUsed = reReviewResult.ModelUsed,
+                                DurationMs = reReviewResult.DurationMs
+                            };
+                            db.CodeReviews.Add(reReview);
+
+                            request.CopilotStatus = CopilotImplementationStatus.PrOpened;
+                            request.UpdatedAt = DateTime.UtcNow;
+                            await db.SaveChangesAsync(ct);
+
+                            await HandleChangesRequestedAsync(request, prNumber, reReviewResult, owner, repo, db, ct);
+                            return;
+                        }
+
+                        _logger.LogInformation("CodeReview: PR #{PrNumber} re-review passed after branch update. Proceeding with merge.", prNumber);
+                    }
+                }
+                else if (behindBy == 0)
+                {
+                    _logger.LogInformation("CodeReview: PR #{PrNumber} branch is up-to-date with main. Safe to merge.", prNumber);
+                }
+            }
 
             // Merge the PR
             var commitMessage = $"{request.Title} (#{prNumber})\n\nAuto-merged by Code Review Agent.\nQuality score: {result.QualityScore}/10";
