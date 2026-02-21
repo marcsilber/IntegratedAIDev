@@ -13,6 +13,7 @@ public class AppDbContext : DbContext
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AgentReview> AgentReviews => Set<AgentReview>();
     public DbSet<ArchitectReview> ArchitectReviews => Set<ArchitectReview>();
+    public DbSet<CodeReview> CodeReviews => Set<CodeReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -118,6 +119,19 @@ public class AppDbContext : DbContext
 
             entity.HasOne(e => e.DevRequest)
                 .WithMany(d => d.ArchitectReviews)
+                .HasForeignKey(e => e.DevRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CodeReview>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Summary).IsRequired();
+            entity.Property(e => e.Decision).HasConversion<string>();
+            entity.Property(e => e.ModelUsed).IsRequired().HasMaxLength(100);
+
+            entity.HasOne(e => e.DevRequest)
+                .WithMany(d => d.CodeReviews)
                 .HasForeignKey(e => e.DevRequestId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

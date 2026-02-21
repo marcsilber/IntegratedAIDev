@@ -58,6 +58,7 @@ public class DevRequest
     public DateTime? LastArchitectReviewAt { get; set; }
     public int ArchitectReviewCount { get; set; } = 0;
     public List<ArchitectReview> ArchitectReviews { get; set; } = new();
+    public List<CodeReview> CodeReviews { get; set; } = new();
 
     // ── Phase 4: Copilot Implementation ───────────────────────────────────
     [MaxLength(200)]

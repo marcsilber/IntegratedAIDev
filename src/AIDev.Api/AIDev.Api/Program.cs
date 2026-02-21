@@ -37,7 +37,9 @@ if (!string.IsNullOrWhiteSpace(gitHubToken))
     // ── Copilot Implementation (Phase 4) ──────────────────────────────────
     builder.Services.AddHostedService<ImplementationTriggerService>();
     builder.Services.AddHostedService<PrMonitorService>();
-
+    // ── Code Review Agent (Phase 6) ───────────────────────────────
+    builder.Services.AddSingleton<ICodeReviewLlmService, CodeReviewLlmService>();
+    builder.Services.AddHostedService<CodeReviewAgentService>();
     // ── Pipeline Orchestrator (Phase 5) ───────────────────────────────────
     builder.Services.AddHostedService<PipelineOrchestratorService>();
 }

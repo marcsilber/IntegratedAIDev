@@ -65,10 +65,13 @@ public class PrMonitorService : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         // Find requests actively being implemented by Copilot
+        // Exclude PrOpened and ReviewApproved — those are handled by CodeReviewAgentService
         var inProgressRequests = await db.DevRequests
             .Include(r => r.Project)
             .Where(r => r.Status == RequestStatus.InProgress
                      && r.CopilotSessionId != null
+                     && r.CopilotStatus != CopilotImplementationStatus.PrOpened
+                     && r.CopilotStatus != CopilotImplementationStatus.ReviewApproved
                      && r.CopilotStatus != CopilotImplementationStatus.PrMerged
                      && r.CopilotStatus != CopilotImplementationStatus.Failed)
             .ToListAsync(ct);

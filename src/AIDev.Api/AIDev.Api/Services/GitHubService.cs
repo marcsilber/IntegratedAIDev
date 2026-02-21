@@ -24,6 +24,16 @@ public interface IGitHubService
     Task<bool> DeleteBranchAsync(string owner, string repo, string branchRef);
     /// <summary>Find the most recent workflow run triggered after a given time.</summary>
     Task<(long runId, string status, string conclusion)?> GetLatestWorkflowRunAsync(string owner, string repo, string branch, DateTime afterUtc);
+    /// <summary>Get the combined diff of a pull request.</summary>
+    Task<string?> GetPrDiffAsync(string owner, string repo, int prNumber);
+    /// <summary>Submit an approving review on a pull request.</summary>
+    Task<bool> ApprovePullRequestAsync(string owner, string repo, int prNumber, string body);
+    /// <summary>Merge a pull request using squash strategy.</summary>
+    Task<bool> MergePullRequestAsync(string owner, string repo, int prNumber, string commitMessage);
+    /// <summary>Post a review requesting changes on a pull request.</summary>
+    Task<bool> RequestChangesOnPullRequestAsync(string owner, string repo, int prNumber, string body);
+    /// <summary>Mark a draft PR as ready for review.</summary>
+    Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber);
 }
 
 public class GitHubService : IGitHubService
@@ -405,6 +415,133 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task<string?> GetPrDiffAsync(string owner, string repo, int prNumber)
+    {
+        try
+        {
+            // Octokit doesn't have a built-in diff method, use REST API
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github.v3.diff"));
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+
+            var url = $"https://api.github.com/repos/{owner}/{repo}/pulls/{prNumber}";
+            var response = await http.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+            var diff = await response.Content.ReadAsStringAsync();
+
+            _logger.LogInformation("Retrieved diff for PR #{PrNumber} ({Length} chars)", prNumber, diff.Length);
+            return diff;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get diff for PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return null;
+        }
+    }
+
+    public async Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber)
+    {
+        try
+        {
+            // GitHub GraphQL API is needed to convert draft → ready (REST doesn't support this)
+            using var http = new HttpClient();
+            http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("AIDev-Pipeline", "1.0"));
+
+            // First get the PR node ID
+            var pr = await _client.PullRequest.Get(owner, repo, prNumber);
+            var nodeId = pr.NodeId;
+
+            var graphqlBody = JsonSerializer.Serialize(new
+            {
+                query = "mutation($id: ID!) { markPullRequestReadyForReview(input: { pullRequestId: $id }) { pullRequest { isDraft } } }",
+                variables = new { id = nodeId }
+            });
+
+            var content = new StringContent(graphqlBody, Encoding.UTF8, "application/json");
+            var response = await http.PostAsync("https://api.github.com/graphql", content);
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation("Marked PR #{PrNumber} as ready for review", prNumber);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to mark PR #{PrNumber} as ready for review", prNumber);
+            return false;
+        }
+    }
+
+    public async Task<bool> ApprovePullRequestAsync(string owner, string repo, int prNumber, string body)
+    {
+        try
+        {
+            var review = new PullRequestReviewCreate()
+            {
+                Body = body,
+                Event = PullRequestReviewEvent.Approve
+            };
+            await _client.PullRequest.Review.Create(owner, repo, prNumber, review);
+            _logger.LogInformation("Approved PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to approve PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<bool> RequestChangesOnPullRequestAsync(string owner, string repo, int prNumber, string body)
+    {
+        try
+        {
+            var review = new PullRequestReviewCreate()
+            {
+                Body = body,
+                Event = PullRequestReviewEvent.RequestChanges
+            };
+            await _client.PullRequest.Review.Create(owner, repo, prNumber, review);
+            _logger.LogInformation("Requested changes on PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to request changes on PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<bool> MergePullRequestAsync(string owner, string repo, int prNumber, string commitMessage)
+    {
+        try
+        {
+            var merge = new MergePullRequest
+            {
+                CommitTitle = commitMessage,
+                MergeMethod = PullRequestMergeMethod.Squash
+            };
+            var result = await _client.PullRequest.Merge(owner, repo, prNumber, merge);
+
+            if (result.Merged)
+            {
+                _logger.LogInformation("Merged PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("PR #{PrNumber} merge returned non-merged state: {Message}", prNumber, result.Message);
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to merge PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return false;
+        }
+    }
+
     private static string FormatIssueBody(DevRequest request)
     {
         var body = $"""
@@ -553,5 +690,35 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping workflow run query.");
         return Task.FromResult<(long runId, string status, string conclusion)?>(null);
+    }
+
+    public Task<string?> GetPrDiffAsync(string owner, string repo, int prNumber)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning null diff.");
+        return Task.FromResult<string?>(null);
+    }
+
+    public Task<bool> ApprovePullRequestAsync(string owner, string repo, int prNumber, string body)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping PR approval.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> RequestChangesOnPullRequestAsync(string owner, string repo, int prNumber, string body)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping change request.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> MergePullRequestAsync(string owner, string repo, int prNumber, string commitMessage)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping PR merge.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping mark ready.");
+        return Task.FromResult(false);
     }
 }

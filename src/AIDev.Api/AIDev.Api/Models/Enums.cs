@@ -45,11 +45,12 @@ public enum ArchitectDecision
 
 public enum CopilotImplementationStatus
 {
-    Pending,    // Issue assigned to Copilot, waiting for session to start
-    Working,    // Copilot is actively implementing
-    PrOpened,   // Copilot opened a PR, awaiting human review
-    PrMerged,   // PR merged — implementation complete
-    Failed      // Copilot couldn't complete the task
+    Pending,        // Issue assigned to Copilot, waiting for session to start
+    Working,        // Copilot is actively implementing
+    PrOpened,       // Copilot opened a PR, awaiting review
+    ReviewApproved, // Code Review Agent approved the PR, merging
+    PrMerged,       // PR merged — implementation complete
+    Failed          // Copilot couldn't complete the task
 }
 
 /// <summary>
