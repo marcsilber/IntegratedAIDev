@@ -334,6 +334,22 @@ public class CodeReviewAgentService : BackgroundService
                 }
             }
 
+            // Clean up _temp-attachments/ from the PR branch before merging
+            // so temporary staging files don't end up in main
+            if (!string.IsNullOrEmpty(request.CopilotBranchName))
+            {
+                var removed = await _gitHubService.RemoveFilesFromBranchAsync(
+                    owner, repo, request.CopilotBranchName,
+                    "_temp-attachments/",
+                    "Clean up temp attachment files before merge");
+                if (removed)
+                {
+                    _logger.LogInformation("CodeReview: Cleaned up _temp-attachments/ from PR #{PrNumber} branch", prNumber);
+                    // Wait for GitHub to process
+                    await Task.Delay(TimeSpan.FromSeconds(3), ct);
+                }
+            }
+
             // Merge the PR
             var commitMessage = $"{request.Title} (#{prNumber})\n\nAuto-merged by Code Review Agent.\nQuality score: {result.QualityScore}/10";
             var merged = await _gitHubService.MergePullRequestAsync(owner, repo, prNumber, commitMessage);
@@ -357,6 +373,10 @@ public class CodeReviewAgentService : BackgroundService
                         await db.SaveChangesAsync(ct);
                     }
                 }
+
+                // Clean up the prep/attachments branch if one was created
+                var prepBranch = $"attachments/request-{request.Id}";
+                await _gitHubService.DeleteBranchAsync(owner, repo, prepBranch);
 
                 // Update labels
                 await _gitHubService.RemoveLabelAsync(owner, repo, request.GitHubIssueNumber!.Value, "review:approved");
