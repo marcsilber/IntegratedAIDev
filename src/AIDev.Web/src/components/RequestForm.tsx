@@ -50,7 +50,15 @@ export default function RequestForm() {
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.startsWith("image/")) {
         const file = items[i].getAsFile();
-        if (file) imageFiles.push(file);
+        if (file) {
+          // Give each pasted image a unique name so multiple pastes are not
+          // deduplicated when the OS assigns the same default name (e.g. "image.png").
+          const extFromName = file.name.includes(".") ? file.name.split(".").pop() : undefined;
+          const extFromMime = file.type.split("/")[1]?.replace(/\+.*$/, "");
+          const ext = extFromName ?? extFromMime ?? "png";
+          const unique = new File([file], `pasted-image-${crypto.randomUUID()}.${ext}`, { type: file.type });
+          imageFiles.push(unique);
+        }
       }
     }
     if (imageFiles.length > 0) {
@@ -264,7 +272,7 @@ export default function RequestForm() {
             Add Files
           </button>
           <span className="muted" style={{ marginLeft: 8, fontSize: "0.85em" }}>
-            or paste an image (Ctrl+V / ⌘V)
+            or paste images (Ctrl+V / ⌘V)
           </span>
           {attachments.length > 0 && (
             <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
