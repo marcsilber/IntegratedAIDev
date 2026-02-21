@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, type FormEvent } from "react";
+import { useState, useEffect, useRef, useCallback, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   createRequest,
@@ -24,7 +24,40 @@ export default function RequestForm() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);
   const [attachments, setAttachments] = useState<File[]>([]);
+  const [hoveredPreview, setHoveredPreview] = useState<number | null>(null);
+  const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const urls = attachments.map((f) =>
+      f.type.startsWith("image/") ? URL.createObjectURL(f) : ""
+    );
+    setPreviewUrls(urls);
+    return () => urls.forEach((u) => u && URL.revokeObjectURL(u));
+  }, [attachments]);
+
+  const addFiles = useCallback((files: File[]) => {
+    setAttachments((prev) => {
+      const existing = new Set(prev.map((f) => f.name));
+      return [...prev, ...files.filter((f) => !existing.has(f.name))];
+    });
+  }, []);
+
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    const imageFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith("image/")) {
+        const file = items[i].getAsFile();
+        if (file) imageFiles.push(file);
+      }
+    }
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      addFiles(imageFiles);
+    }
+  }, [addFiles]);
 
   const [form, setForm] = useState<CreateRequest>({
     projectId: 0,
@@ -67,7 +100,7 @@ export default function RequestForm() {
   };
 
   return (
-    <div className="page">
+    <div className="page" onPaste={handlePaste}>
       <h1>Submit New Request</h1>
 
       {error && <div className="error-banner">{error}</div>}
@@ -219,10 +252,7 @@ export default function RequestForm() {
             style={{ display: "none" }}
             onChange={(e) => {
               const selected = Array.from(e.target.files ?? []);
-              setAttachments((prev) => {
-                const existing = new Set(prev.map((f) => f.name));
-                return [...prev, ...selected.filter((f) => !existing.has(f.name))];
-              });
+              addFiles(selected);
               if (fileInputRef.current) fileInputRef.current.value = "";
             }}
           />
@@ -233,21 +263,48 @@ export default function RequestForm() {
           >
             Add Files
           </button>
+          <span className="muted" style={{ marginLeft: 8, fontSize: "0.85em" }}>
+            or paste an image (Ctrl+V / ⌘V)
+          </span>
           {attachments.length > 0 && (
             <ul style={{ marginTop: 8, paddingLeft: 0, listStyle: "none" }}>
-              {attachments.map((f, i) => (
-                <li key={`${f.name}-${f.size}-${f.lastModified}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                  <span>{f.name} ({(f.size / 1024).toFixed(1)} KB)</span>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    style={{ padding: "2px 8px", fontSize: "0.8em" }}
-                    onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
-                  >
-                    ✕
-                  </button>
-                </li>
-              ))}
+              {attachments.map((f, i) => {
+                const previewUrl = previewUrls[i];
+                const isImage = !!previewUrl;
+                const isHovered = hoveredPreview === i;
+                return (
+                  <li key={`${f.name}-${f.size}-${f.lastModified}`} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                    {isImage && previewUrl && (
+                      <img
+                        src={previewUrl}
+                        alt={f.name}
+                        onMouseEnter={() => setHoveredPreview(i)}
+                        onMouseLeave={() => setHoveredPreview(null)}
+                        style={{
+                          height: isHovered ? 240 : 48,
+                          maxWidth: isHovered ? 480 : 48,
+                          objectFit: "contain",
+                          borderRadius: 4,
+                          border: "1px solid #e2e8f0",
+                          cursor: "zoom-in",
+                          transition: "height 0.2s ease, max-width 0.2s ease",
+                          zIndex: isHovered ? 10 : 1,
+                          position: isHovered ? "relative" : "static",
+                        }}
+                      />
+                    )}
+                    <span>{f.name} ({(f.size / 1024).toFixed(1)} KB)</span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ padding: "2px 8px", fontSize: "0.8em" }}
+                      onClick={() => setAttachments((prev) => prev.filter((_, idx) => idx !== i))}
+                    >
+                      ✕
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
