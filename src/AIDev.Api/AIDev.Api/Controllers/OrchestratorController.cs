@@ -22,19 +22,22 @@ public class OrchestratorController : ControllerBase
     private readonly ILogger<OrchestratorController> _logger;
     private readonly ICodebaseService _codebaseService;
     private readonly ILlmClientFactory _llmClientFactory;
+    private readonly IArchitectLlmService _architectLlmService;
 
     public OrchestratorController(
         AppDbContext db,
         IConfiguration configuration,
         ILogger<OrchestratorController> logger,
         ICodebaseService codebaseService,
-        ILlmClientFactory llmClientFactory)
+        ILlmClientFactory llmClientFactory,
+        IArchitectLlmService architectLlmService)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
         _codebaseService = codebaseService;
         _llmClientFactory = llmClientFactory;
+        _architectLlmService = architectLlmService;
     }
 
     // ── Health ────────────────────────────────────────────────────────────
@@ -185,6 +188,70 @@ public class OrchestratorController : ControllerBase
                 error = llmTestError
             }
         });
+    }
+
+    /// <summary>
+    /// Test architect review process for a specific request. Returns detailed error info.
+    /// </summary>
+    [AllowAnonymous]
+    [HttpGet("test-architect/{requestId}")]
+    public async Task<ActionResult> TestArchitect(int requestId)
+    {
+        var steps = new List<object>();
+
+        try
+        {
+            // 1. Load request
+            var request = await _db.DevRequests
+                .Include(r => r.Comments)
+                .Include(r => r.Project)
+                .Include(r => r.AgentReviews)
+                .Include(r => r.ArchitectReviews)
+                .FirstOrDefaultAsync(r => r.Id == requestId);
+
+            if (request == null)
+                return NotFound(new { error = $"Request #{requestId} not found" });
+
+            steps.Add(new { step = "load_request", ok = true, title = request.Title, status = request.Status.ToString() });
+
+            // 2. Get PO review
+            var poReview = request.AgentReviews.OrderByDescending(r => r.CreatedAt).FirstOrDefault();
+            if (poReview == null)
+                return Ok(new { steps, error = "No PO review found" });
+
+            steps.Add(new { step = "po_review", ok = true, decision = poReview.Decision, alignmentScore = poReview.AlignmentScore, completenessScore = poReview.CompletenessScore });
+
+            // 3. Get repo map
+            var owner = request.Project!.GitHubOwner;
+            var repo = request.Project.GitHubRepo;
+            var repoMap = await _codebaseService.GetRepositoryMapAsync(owner, repo);
+            steps.Add(new { step = "repo_map", ok = true, length = repoMap?.Length ?? 0 });
+
+            // 4. File reader delegate
+            async Task<Dictionary<string, string>> FileReader(IEnumerable<string> files)
+                => await _codebaseService.GetFileContentsAsync(owner, repo, files);
+
+            // 5. Call architect LLM
+            var result = await _architectLlmService.AnalyseRequestAsync(request, poReview, repoMap, FileReader);
+            steps.Add(new
+            {
+                step = "architect_llm",
+                ok = true,
+                summary = result.SolutionSummary,
+                complexity = result.EstimatedComplexity,
+                filesRead = result.FilesRead.Count,
+                step1Tokens = result.Step1PromptTokens + result.Step1CompletionTokens,
+                step2Tokens = result.Step2PromptTokens + result.Step2CompletionTokens,
+                durationMs = result.TotalDurationMs
+            });
+
+            return Ok(new { success = true, steps });
+        }
+        catch (Exception ex)
+        {
+            steps.Add(new { step = "error", ok = false, error = $"{ex.GetType().Name}: {ex.Message}", stackTrace = ex.StackTrace?.Split('\n').Take(5) });
+            return Ok(new { success = false, steps });
+        }
     }
 
     /// <summary>
