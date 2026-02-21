@@ -31,7 +31,7 @@ function App() {
         <nav className="navbar">
           <div className="nav-brand">
             <span className="nav-logo">⚡</span>
-            <span className="nav-title">AI Dev Pipeline</span>
+            <span className="nav-title">Silver Bullet Labs</span>
           </div>
           <div className="nav-links">
             {isAuthenticated && (
@@ -76,7 +76,7 @@ function App() {
 
           <UnauthenticatedTemplate>
             <div className="login-prompt">
-              <h1>AI Dev Pipeline</h1>
+              <h1>Silver Bullet Labs</h1>
               <p>Sign in with your Microsoft account to submit and track development requests.</p>
               <button className="btn btn-primary btn-lg" onClick={handleLogin}>
                 Sign in with Microsoft
