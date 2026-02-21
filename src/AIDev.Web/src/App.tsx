@@ -11,6 +11,7 @@ import RequestForm from "./components/RequestForm";
 import RequestDetail from "./components/RequestDetail";
 import DashboardView from "./components/Dashboard";
 import AdminSettings from "./components/AdminSettings";
+import logoImg from "./assets/hero.png";
 import "./App.css";
 
 function App() {
@@ -30,8 +31,8 @@ function App() {
       <div className="app">
         <nav className="navbar">
           <div className="nav-brand">
-            <span className="nav-logo">⚡</span>
-            <span className="nav-title">Silver Bullet Labs</span>
+            <img src={logoImg} className="nav-logo" alt="AI Dev Pipeline" />
+            <span className="nav-title">AI Dev Pipeline</span>
           </div>
           <div className="nav-links">
             {isAuthenticated && (
@@ -76,7 +77,7 @@ function App() {
 
           <UnauthenticatedTemplate>
             <div className="login-prompt">
-              <h1>Silver Bullet Labs</h1>
+              <h1>AI Dev Pipeline</h1>
               <p>Sign in with your Microsoft account to submit and track development requests.</p>
               <button className="btn btn-primary btn-lg" onClick={handleLogin}>
                 Sign in with Microsoft
