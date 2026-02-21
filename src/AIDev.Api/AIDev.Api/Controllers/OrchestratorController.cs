@@ -21,17 +21,20 @@ public class OrchestratorController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<OrchestratorController> _logger;
     private readonly ICodebaseService _codebaseService;
+    private readonly ILlmClientFactory _llmClientFactory;
 
     public OrchestratorController(
         AppDbContext db,
         IConfiguration configuration,
         ILogger<OrchestratorController> logger,
-        ICodebaseService codebaseService)
+        ICodebaseService codebaseService,
+        ILlmClientFactory llmClientFactory)
     {
         _db = db;
         _configuration = configuration;
         _logger = logger;
         _codebaseService = codebaseService;
+        _llmClientFactory = llmClientFactory;
     }
 
     // ── Health ────────────────────────────────────────────────────────────
@@ -142,6 +145,26 @@ public class OrchestratorController : ControllerBase
         var endpoint = _configuration["GitHubModels:Endpoint"];
         var model = _configuration["GitHubModels:ModelName"];
 
+        // Test LLM call
+        string? llmTestResult = null;
+        string? llmTestError = null;
+        try
+        {
+            var chatClient = _llmClientFactory.CreateChatClient();
+            var messages = new List<OpenAI.Chat.ChatMessage>
+            {
+                new OpenAI.Chat.SystemChatMessage("Reply with exactly: OK"),
+                new OpenAI.Chat.UserChatMessage("Test")
+            };
+            var opts = new OpenAI.Chat.ChatCompletionOptions { MaxOutputTokenCount = 10 };
+            var completion = await chatClient.CompleteChatAsync(messages, opts);
+            llmTestResult = completion.Value.Content[0].Text;
+        }
+        catch (Exception ex)
+        {
+            llmTestError = $"{ex.GetType().Name}: {ex.Message}";
+        }
+
         return Ok(new
         {
             timestamp = DateTime.UtcNow,
@@ -154,6 +177,11 @@ public class OrchestratorController : ControllerBase
                 llmEndpoint = endpoint ?? "(default)",
                 llmModel = model ?? "(default)",
                 architectEnabled = _configuration["ArchitectAgent:Enabled"]
+            },
+            llmTest = new
+            {
+                result = llmTestResult,
+                error = llmTestError
             }
         });
     }
