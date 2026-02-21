@@ -43,12 +43,15 @@ export type RequestStatus =
   | "New"
   | "NeedsClarification"
   | "Triaged"
+  | "ArchitectReview"
   | "Approved"
   | "InProgress"
   | "Done"
   | "Rejected";
 
 export type AgentDecision = "Approve" | "Reject" | "Clarify";
+export type ArchitectDecision = "Pending" | "Approved" | "Rejected" | "Revised";
+export type CopilotImplementationStatus = "Pending" | "Working" | "PrOpened" | "PrMerged" | "Failed";
 
 export interface DevRequest {
   id: number;
@@ -379,6 +382,376 @@ export async function triggerReReview(requestId: number): Promise<void> {
 
 export async function getAgentBudget(): Promise<TokenBudget> {
   const { data } = await api.get("/agent/budget");
+  return data;
+}
+
+// ── Architect Types ───────────────────────────────────────────────────────
+
+export interface ArchitectReviewResponse {
+  id: number;
+  devRequestId: number;
+  requestTitle: string;
+  solutionSummary: string;
+  approach: string;
+  impactedFiles: ImpactedFile[];
+  newFiles: NewFile[];
+  dataMigration: DataMigrationInfo;
+  breakingChanges: string[];
+  dependencyChanges: DependencyChange[];
+  risks: RiskInfo[];
+  estimatedComplexity: string;
+  estimatedEffort: string;
+  implementationOrder: string[];
+  testingNotes: string;
+  architecturalNotes: string;
+  decision: ArchitectDecision;
+  humanFeedback?: string;
+  approvedBy?: string;
+  approvedAt?: string;
+  filesAnalysed: number;
+  totalTokensUsed: number;
+  modelUsed: string;
+  totalDurationMs: number;
+  createdAt: string;
+}
+
+export interface ImpactedFile {
+  path: string;
+  action: string;
+  description: string;
+  estimatedLinesChanged: number;
+}
+
+export interface NewFile {
+  path: string;
+  description: string;
+  estimatedLines: number;
+}
+
+export interface DataMigrationInfo {
+  required: boolean;
+  description?: string;
+  steps: string[];
+}
+
+export interface DependencyChange {
+  package: string;
+  action: string;
+  version: string;
+  reason: string;
+}
+
+export interface RiskInfo {
+  description: string;
+  severity: string;
+  mitigation: string;
+}
+
+export interface ArchitectConfig {
+  enabled: boolean;
+  pollingIntervalSeconds: number;
+  maxReviewsPerRequest: number;
+  maxFilesToRead: number;
+  temperature: number;
+  modelName: string;
+  dailyTokenBudget: number;
+  monthlyTokenBudget: number;
+}
+
+export interface ArchitectConfigUpdate {
+  enabled?: boolean;
+  pollingIntervalSeconds?: number;
+  maxReviewsPerRequest?: number;
+  maxFilesToRead?: number;
+  temperature?: number;
+  dailyTokenBudget?: number;
+  monthlyTokenBudget?: number;
+}
+
+export interface ArchitectStats {
+  totalAnalyses: number;
+  pendingReview: number;
+  approved: number;
+  rejected: number;
+  revised: number;
+  averageFilesAnalysed: number;
+  totalTokensUsed: number;
+  averageDurationMs: number;
+}
+
+// ── Architect Functions ───────────────────────────────────────────────────
+
+export async function getArchitectReviews(params?: {
+  requestId?: number;
+  decision?: ArchitectDecision;
+}): Promise<ArchitectReviewResponse[]> {
+  const { data } = await api.get("/architect/reviews", { params });
+  return data;
+}
+
+export async function getArchitectReview(
+  id: number
+): Promise<ArchitectReviewResponse> {
+  const { data } = await api.get(`/architect/reviews/${id}`);
+  return data;
+}
+
+export async function approveArchitectReview(
+  id: number,
+  reason?: string
+): Promise<ArchitectReviewResponse> {
+  const { data } = await api.post(`/architect/reviews/${id}/approve`, {
+    reason,
+  });
+  return data;
+}
+
+export async function rejectArchitectReview(
+  id: number,
+  reason: string
+): Promise<ArchitectReviewResponse> {
+  const { data } = await api.post(`/architect/reviews/${id}/reject`, {
+    reason,
+  });
+  return data;
+}
+
+export async function postArchitectFeedback(
+  id: number,
+  feedback: string
+): Promise<void> {
+  await api.post(`/architect/reviews/${id}/feedback`, { feedback });
+}
+
+export async function triggerArchitectReAnalysis(
+  requestId: number
+): Promise<void> {
+  await api.post(`/architect/reviews/re-analyse/${requestId}`);
+}
+
+export async function getArchitectConfig(): Promise<ArchitectConfig> {
+  const { data } = await api.get("/architect/config");
+  return data;
+}
+
+export async function updateArchitectConfig(
+  config: ArchitectConfigUpdate
+): Promise<ArchitectConfig> {
+  const { data } = await api.put("/architect/config", config);
+  return data;
+}
+
+export async function getArchitectBudget(): Promise<TokenBudget> {
+  const { data } = await api.get("/architect/budget");
+  return data;
+}
+
+export async function getArchitectStats(): Promise<ArchitectStats> {
+  const { data } = await api.get("/architect/stats");
+  return data;
+}
+
+// ── Implementation / Copilot Types ────────────────────────────────────────
+
+export interface ImplementationStatus {
+  requestId: number;
+  title: string;
+  issueNumber?: number;
+  copilotStatus?: CopilotImplementationStatus;
+  copilotSessionId?: string;
+  prNumber?: number;
+  prUrl?: string;
+  triggeredAt?: string;
+  completedAt?: string;
+  elapsedMinutes?: number;
+}
+
+export interface ImplementationTrigger {
+  additionalInstructions?: string;
+  model?: string;
+  baseBranch?: string;
+}
+
+export interface ImplementationTriggerResponse {
+  requestId: number;
+  issueNumber?: number;
+  copilotStatus: CopilotImplementationStatus;
+  triggeredAt: string;
+}
+
+export interface ImplementationConfig {
+  enabled: boolean;
+  autoTriggerOnApproval: boolean;
+  pollingIntervalSeconds: number;
+  prPollIntervalSeconds: number;
+  maxConcurrentSessions: number;
+  baseBranch: string;
+  model: string;
+  customAgent: string;
+  maxRetries: number;
+}
+
+export interface ImplementationConfigUpdate {
+  enabled?: boolean;
+  autoTriggerOnApproval?: boolean;
+  pollingIntervalSeconds?: number;
+  prPollIntervalSeconds?: number;
+  maxConcurrentSessions?: number;
+  baseBranch?: string;
+  model?: string;
+  maxRetries?: number;
+}
+
+export interface ImplementationStats {
+  totalTriggered: number;
+  pending: number;
+  working: number;
+  prOpened: number;
+  prMerged: number;
+  failed: number;
+  successRate: number;
+  averageCompletionMinutes: number;
+  activeSessions: number;
+}
+
+// ── Implementation / Copilot Functions ────────────────────────────────────
+
+export async function triggerImplementation(
+  requestId: number,
+  trigger?: ImplementationTrigger
+): Promise<ImplementationTriggerResponse> {
+  const { data } = await api.post(`/implementation/trigger/${requestId}`, trigger || {});
+  return data;
+}
+
+export async function reTriggerImplementation(
+  requestId: number
+): Promise<ImplementationTriggerResponse> {
+  const { data } = await api.post(`/implementation/re-trigger/${requestId}`);
+  return data;
+}
+
+export async function getImplementationStatus(
+  requestId: number
+): Promise<ImplementationStatus> {
+  const { data } = await api.get(`/implementation/status/${requestId}`);
+  return data;
+}
+
+export async function getImplementationSessions(
+  status?: CopilotImplementationStatus
+): Promise<ImplementationStatus[]> {
+  const { data } = await api.get("/implementation/sessions", {
+    params: status ? { status } : undefined,
+  });
+  return data;
+}
+
+export async function getImplementationConfig(): Promise<ImplementationConfig> {
+  const { data } = await api.get("/implementation/config");
+  return data;
+}
+
+export async function updateImplementationConfig(
+  config: ImplementationConfigUpdate
+): Promise<ImplementationConfig> {
+  const { data } = await api.put("/implementation/config", config);
+  return data;
+}
+
+export async function getImplementationStats(): Promise<ImplementationStats> {
+  const { data } = await api.get("/implementation/stats");
+  return data;
+}
+
+// ── Pipeline Orchestrator Types ───────────────────────────────────────────
+
+export type DeploymentStatus = "None" | "Pending" | "InProgress" | "Succeeded" | "Failed";
+export type StallSeverity = "Warning" | "Critical";
+
+export interface PipelineHealth {
+  totalStalled: number;
+  stalledNeedsClarification: number;
+  stalledArchitectReview: number;
+  stalledApproved: number;
+  stalledFailed: number;
+  deploymentsPending: number;
+  deploymentsInProgress: number;
+  deploymentsSucceeded: number;
+  deploymentsFailed: number;
+  branchesDeleted: number;
+  branchesOutstanding: number;
+}
+
+export interface StalledRequest {
+  requestId: number;
+  title: string;
+  status: string;
+  stallReason: string;
+  severity: StallSeverity;
+  gitHubIssueNumber?: number;
+  daysStalled: number;
+  stallNotifiedAt?: string;
+}
+
+export interface DeploymentTracking {
+  requestId: number;
+  title: string;
+  prNumber?: number;
+  deploymentStatus: DeploymentStatus;
+  deploymentRunId?: number;
+  mergedAt?: string;
+  deployedAt?: string;
+  branchDeleted: boolean;
+  branchName?: string;
+}
+
+export interface PipelineConfig {
+  enabled: boolean;
+  pollIntervalSeconds: number;
+  needsClarificationStaleDays: number;
+  architectReviewStaleDays: number;
+  approvedStaleDays: number;
+  failedStaleHours: number;
+}
+
+export interface PipelineConfigUpdate {
+  enabled?: boolean;
+  pollIntervalSeconds?: number;
+  needsClarificationStaleDays?: number;
+  architectReviewStaleDays?: number;
+  approvedStaleDays?: number;
+  failedStaleHours?: number;
+}
+
+// ── Pipeline Orchestrator Functions ───────────────────────────────────────
+
+export async function getPipelineHealth(): Promise<PipelineHealth> {
+  const { data } = await api.get("/orchestrator/health");
+  return data;
+}
+
+export async function getStalledRequests(): Promise<StalledRequest[]> {
+  const { data } = await api.get("/orchestrator/stalled");
+  return data;
+}
+
+export async function getDeployments(status?: DeploymentStatus): Promise<DeploymentTracking[]> {
+  const { data } = await api.get("/orchestrator/deployments", {
+    params: status ? { status } : undefined,
+  });
+  return data;
+}
+
+export async function getPipelineConfig(): Promise<PipelineConfig> {
+  const { data } = await api.get("/orchestrator/config");
+  return data;
+}
+
+export async function updatePipelineConfig(
+  config: PipelineConfigUpdate
+): Promise<PipelineConfig> {
+  const { data } = await api.put("/orchestrator/config", config);
   return data;
 }
 

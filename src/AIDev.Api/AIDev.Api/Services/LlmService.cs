@@ -1,8 +1,6 @@
-using System.ClientModel;
 using System.Diagnostics;
 using System.Text.Json;
 using AIDev.Api.Models;
-using OpenAI;
 using OpenAI.Chat;
 
 namespace AIDev.Api.Services;
@@ -122,25 +120,16 @@ public class LlmService : ILlmService
         }}
         """;
 
-    public LlmService(IConfiguration configuration, IReferenceDocumentService refDocs, ILogger<LlmService> logger)
+    public LlmService(ILlmClientFactory clientFactory, IConfiguration configuration, IReferenceDocumentService refDocs, ILogger<LlmService> logger)
     {
         _refDocs = refDocs;
         _logger = logger;
 
-        var endpoint = configuration["GitHubModels:Endpoint"] ?? "https://models.inference.ai.azure.com";
-        _modelName = configuration["GitHubModels:ModelName"] ?? "gpt-4o";
+        _modelName = clientFactory.ModelName;
         _temperature = float.Parse(configuration["ProductOwnerAgent:Temperature"] ?? "0.3");
         _maxTokens = int.Parse(configuration["ProductOwnerAgent:MaxTokens"] ?? "2000");
 
-        // GitHub Models uses the GitHub PAT as the API key
-        var apiKey = configuration["GitHub:PersonalAccessToken"]
-            ?? throw new InvalidOperationException("GitHub:PersonalAccessToken is required for LLM access via GitHub Models.");
-
-        var client = new OpenAIClient(
-            new ApiKeyCredential(apiKey),
-            new OpenAIClientOptions { Endpoint = new Uri(endpoint) });
-
-        _chatClient = client.GetChatClient(_modelName);
+        _chatClient = clientFactory.CreateChatClient();
     }
 
     public async Task<AgentReviewResult> ReviewRequestAsync(DevRequest request,

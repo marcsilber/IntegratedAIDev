@@ -204,3 +204,220 @@ public class TokenBudgetDto
     public int DailyReviewCount { get; set; }
     public int MonthlyReviewCount { get; set; }
 }
+
+// ── Architect DTOs ────────────────────────────────────────────────────────
+
+public class ArchitectReviewResponseDto
+{
+    public int Id { get; set; }
+    public int DevRequestId { get; set; }
+    public string RequestTitle { get; set; } = string.Empty;
+    public string SolutionSummary { get; set; } = string.Empty;
+    public string Approach { get; set; } = string.Empty;
+    public List<ImpactedFileDto> ImpactedFiles { get; set; } = new();
+    public List<NewFileDto> NewFiles { get; set; } = new();
+    public DataMigrationDto DataMigration { get; set; } = new();
+    public List<string> BreakingChanges { get; set; } = new();
+    public List<DependencyChangeDto> DependencyChanges { get; set; } = new();
+    public List<RiskDto> Risks { get; set; } = new();
+    public string EstimatedComplexity { get; set; } = string.Empty;
+    public string EstimatedEffort { get; set; } = string.Empty;
+    public List<string> ImplementationOrder { get; set; } = new();
+    public string TestingNotes { get; set; } = string.Empty;
+    public string ArchitecturalNotes { get; set; } = string.Empty;
+    public ArchitectDecision Decision { get; set; }
+    public string? HumanFeedback { get; set; }
+    public string? ApprovedBy { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public int FilesAnalysed { get; set; }
+    public int TotalTokensUsed { get; set; }
+    public string ModelUsed { get; set; } = string.Empty;
+    public int TotalDurationMs { get; set; }
+    public DateTime CreatedAt { get; set; }
+}
+
+public record ImpactedFileDto(string Path, string Action, string Description, int EstimatedLinesChanged);
+public record NewFileDto(string Path, string Description, int EstimatedLines);
+public record DataMigrationDto(bool Required = false, string? Description = null, List<string>? Steps = null)
+{
+    public List<string> Steps { get; init; } = Steps ?? new();
+}
+public record DependencyChangeDto(string Package, string Action, string Version, string Reason);
+public record RiskDto(string Description, string Severity, string Mitigation);
+
+public class ArchitectApprovalDto
+{
+    public string? Reason { get; set; }
+}
+
+public class ArchitectFeedbackDto
+{
+    [Required]
+    public string Feedback { get; set; } = string.Empty;
+}
+
+public class ArchitectConfigDto
+{
+    public bool Enabled { get; set; }
+    public int PollingIntervalSeconds { get; set; }
+    public int MaxReviewsPerRequest { get; set; }
+    public int MaxFilesToRead { get; set; }
+    public float Temperature { get; set; }
+    public string ModelName { get; set; } = string.Empty;
+    public int DailyTokenBudget { get; set; }
+    public int MonthlyTokenBudget { get; set; }
+}
+
+public class ArchitectConfigUpdateDto
+{
+    public bool? Enabled { get; set; }
+    public int? PollingIntervalSeconds { get; set; }
+    public int? MaxReviewsPerRequest { get; set; }
+    public int? MaxFilesToRead { get; set; }
+    public float? Temperature { get; set; }
+    public int? DailyTokenBudget { get; set; }
+    public int? MonthlyTokenBudget { get; set; }
+}
+
+public class ArchitectStatsDto
+{
+    public int TotalAnalyses { get; set; }
+    public int PendingReview { get; set; }
+    public int Approved { get; set; }
+    public int Rejected { get; set; }
+    public int Revised { get; set; }
+    public double AverageFilesAnalysed { get; set; }
+    public int TotalTokensUsed { get; set; }
+    public double AverageDurationMs { get; set; }
+}
+
+// ── Implementation / Copilot DTOs ─────────────────────────────────────────
+
+public class ImplementationStatusDto
+{
+    public int RequestId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public int? IssueNumber { get; set; }
+    public CopilotImplementationStatus? CopilotStatus { get; set; }
+    public string? CopilotSessionId { get; set; }
+    public int? PrNumber { get; set; }
+    public string? PrUrl { get; set; }
+    public DateTime? TriggeredAt { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    public double? ElapsedMinutes { get; set; }
+}
+
+public class ImplementationTriggerDto
+{
+    public string? AdditionalInstructions { get; set; }
+    public string? Model { get; set; }
+    public string? BaseBranch { get; set; }
+}
+
+public class ImplementationTriggerResponseDto
+{
+    public int RequestId { get; set; }
+    public int? IssueNumber { get; set; }
+    public CopilotImplementationStatus CopilotStatus { get; set; }
+    public DateTime TriggeredAt { get; set; }
+}
+
+public class ImplementationConfigDto
+{
+    public bool Enabled { get; set; }
+    public bool AutoTriggerOnApproval { get; set; }
+    public int PollingIntervalSeconds { get; set; }
+    public int PrPollIntervalSeconds { get; set; }
+    public int MaxConcurrentSessions { get; set; }
+    public string BaseBranch { get; set; } = string.Empty;
+    public string Model { get; set; } = string.Empty;
+    public string CustomAgent { get; set; } = string.Empty;
+    public int MaxRetries { get; set; }
+}
+
+public class ImplementationConfigUpdateDto
+{
+    public bool? Enabled { get; set; }
+    public bool? AutoTriggerOnApproval { get; set; }
+    public int? PollingIntervalSeconds { get; set; }
+    public int? PrPollIntervalSeconds { get; set; }
+    public int? MaxConcurrentSessions { get; set; }
+    public string? BaseBranch { get; set; }
+    public string? Model { get; set; }
+    public int? MaxRetries { get; set; }
+}
+
+public class ImplementationStatsDto
+{
+    public int TotalTriggered { get; set; }
+    public int Pending { get; set; }
+    public int Working { get; set; }
+    public int PrOpened { get; set; }
+    public int PrMerged { get; set; }
+    public int Failed { get; set; }
+    public double SuccessRate { get; set; }
+    public double AverageCompletionMinutes { get; set; }
+    public int ActiveSessions { get; set; }
+}
+
+// ── Pipeline Orchestrator DTOs ────────────────────────────────────────────
+
+public class PipelineHealthDto
+{
+    public int TotalStalled { get; set; }
+    public int StalledNeedsClarification { get; set; }
+    public int StalledArchitectReview { get; set; }
+    public int StalledApproved { get; set; }
+    public int StalledFailed { get; set; }
+    public int DeploymentsPending { get; set; }
+    public int DeploymentsInProgress { get; set; }
+    public int DeploymentsSucceeded { get; set; }
+    public int DeploymentsFailed { get; set; }
+    public int BranchesDeleted { get; set; }
+    public int BranchesOutstanding { get; set; }
+}
+
+public class PipelineConfigDto
+{
+    public bool Enabled { get; set; }
+    public int PollIntervalSeconds { get; set; }
+    public int NeedsClarificationStaleDays { get; set; }
+    public int ArchitectReviewStaleDays { get; set; }
+    public int ApprovedStaleDays { get; set; }
+    public int FailedStaleHours { get; set; }
+}
+
+public class PipelineConfigUpdateDto
+{
+    public bool? Enabled { get; set; }
+    public int? PollIntervalSeconds { get; set; }
+    public int? NeedsClarificationStaleDays { get; set; }
+    public int? ArchitectReviewStaleDays { get; set; }
+    public int? ApprovedStaleDays { get; set; }
+    public int? FailedStaleHours { get; set; }
+}
+
+public class StalledRequestDto
+{
+    public int RequestId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public string StallReason { get; set; } = string.Empty;
+    public string Severity { get; set; } = string.Empty;
+    public int? GitHubIssueNumber { get; set; }
+    public int DaysStalled { get; set; }
+    public DateTime? StallNotifiedAt { get; set; }
+}
+
+public class DeploymentTrackingDto
+{
+    public int RequestId { get; set; }
+    public string Title { get; set; } = string.Empty;
+    public int? PrNumber { get; set; }
+    public string DeploymentStatus { get; set; } = string.Empty;
+    public long? DeploymentRunId { get; set; }
+    public DateTime? MergedAt { get; set; }
+    public DateTime? DeployedAt { get; set; }
+    public bool BranchDeleted { get; set; }
+    public string? BranchName { get; set; }
+}

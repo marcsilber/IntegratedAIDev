@@ -25,8 +25,21 @@ else
 builder.Services.AddSingleton<IReferenceDocumentService, ReferenceDocumentService>();
 if (!string.IsNullOrWhiteSpace(gitHubToken))
 {
+    builder.Services.AddSingleton<ILlmClientFactory, LlmClientFactory>();
     builder.Services.AddSingleton<ILlmService, LlmService>();
     builder.Services.AddHostedService<ProductOwnerAgentService>();
+
+    // ── Architect Agent ───────────────────────────────────────────────────
+    builder.Services.AddSingleton<ICodebaseService, CodebaseService>();
+    builder.Services.AddSingleton<IArchitectLlmService, ArchitectLlmService>();
+    builder.Services.AddHostedService<ArchitectAgentService>();
+
+    // ── Copilot Implementation (Phase 4) ──────────────────────────────────
+    builder.Services.AddHostedService<ImplementationTriggerService>();
+    builder.Services.AddHostedService<PrMonitorService>();
+
+    // ── Pipeline Orchestrator (Phase 5) ───────────────────────────────────
+    builder.Services.AddHostedService<PipelineOrchestratorService>();
 }
 
 // ── Authentication (Entra ID) ─────────────────────────────────────────────

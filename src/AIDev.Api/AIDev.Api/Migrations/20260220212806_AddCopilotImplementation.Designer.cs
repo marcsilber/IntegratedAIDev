@@ -3,6 +3,7 @@ using System;
 using AIDev.Api.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -10,9 +11,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace AIDev.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260220212806_AddCopilotImplementation")]
+    partial class AddCopilotImplementation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.3");
@@ -222,13 +225,6 @@ namespace AIDev.Api.Migrations
                     b.Property<int>("ArchitectReviewCount")
                         .HasColumnType("INTEGER");
 
-                    b.Property<bool>("BranchDeleted")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("CopilotBranchName")
-                        .HasMaxLength(300)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("CopilotCompletedAt")
                         .HasColumnType("TEXT");
 
@@ -250,16 +246,6 @@ namespace AIDev.Api.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("DeployedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<long?>("DeploymentRunId")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<string>("DeploymentStatus")
-                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Description")
@@ -291,9 +277,6 @@ namespace AIDev.Api.Migrations
 
                     b.Property<string>("RequestType")
                         .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("StallNotifiedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Status")

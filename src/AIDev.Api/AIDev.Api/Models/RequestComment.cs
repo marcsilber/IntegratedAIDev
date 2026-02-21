@@ -22,5 +22,8 @@ public class RequestComment
     public int? AgentReviewId { get; set; }
     public AgentReview? AgentReview { get; set; }
 
+    public int? ArchitectReviewId { get; set; }
+    public ArchitectReview? ArchitectReview { get; set; }
+
     public DevRequest? DevRequest { get; set; }
 }

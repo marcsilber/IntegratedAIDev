@@ -12,6 +12,7 @@ public class AppDbContext : DbContext
     public DbSet<Project> Projects => Set<Project>();
     public DbSet<Attachment> Attachments => Set<Attachment>();
     public DbSet<AgentReview> AgentReviews => Set<AgentReview>();
+    public DbSet<ArchitectReview> ArchitectReviews => Set<ArchitectReview>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,11 @@ public class AppDbContext : DbContext
             entity.Property(e => e.RequestType).HasConversion<string>();
             entity.Property(e => e.Priority).HasConversion<string>();
             entity.Property(e => e.Status).HasConversion<string>();
+            entity.Property(e => e.CopilotStatus).HasConversion<string>();
+            entity.Property(e => e.CopilotSessionId).HasMaxLength(200);
+            entity.Property(e => e.CopilotPrUrl).HasMaxLength(500);
+            entity.Property(e => e.CopilotBranchName).HasMaxLength(300);
+            entity.Property(e => e.DeploymentStatus).HasConversion<string>();
 
             entity.HasMany(e => e.Comments)
                 .WithOne(c => c.DevRequest)
@@ -80,6 +86,11 @@ public class AppDbContext : DbContext
                 .WithMany(r => r.Comments)
                 .HasForeignKey(e => e.AgentReviewId)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            entity.HasOne(e => e.ArchitectReview)
+                .WithMany(r => r.Comments)
+                .HasForeignKey(e => e.ArchitectReviewId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<AgentReview>(entity =>
@@ -90,6 +101,25 @@ public class AppDbContext : DbContext
             entity.Property(e => e.Decision).HasConversion<string>();
             entity.Property(e => e.SuggestedPriority).HasMaxLength(50);
             entity.Property(e => e.ModelUsed).IsRequired().HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<ArchitectReview>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.AgentType).IsRequired().HasMaxLength(50);
+            entity.Property(e => e.SolutionSummary).IsRequired();
+            entity.Property(e => e.Approach).IsRequired();
+            entity.Property(e => e.SolutionJson).IsRequired();
+            entity.Property(e => e.Decision).HasConversion<string>();
+            entity.Property(e => e.ModelUsed).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.EstimatedComplexity).HasMaxLength(50);
+            entity.Property(e => e.EstimatedEffort).HasMaxLength(50);
+            entity.Property(e => e.ApprovedBy).HasMaxLength(200);
+
+            entity.HasOne(e => e.DevRequest)
+                .WithMany(d => d.ArchitectReviews)
+                .HasForeignKey(e => e.DevRequestId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

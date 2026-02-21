@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 using AIDev.Api.Models;
 using Octokit;
 
@@ -9,24 +12,36 @@ public interface IGitHubService
     Task UpdateIssueAsync(DevRequest request, string owner, string repo);
     Task<List<Octokit.Repository>> GetRepositoriesAsync();
     Task AddAgentLabelsAsync(string owner, string repo, int issueNumber, AgentDecision decision);
+    Task AddLabelAsync(string owner, string repo, int issueNumber, string label, string color);
     Task PostAgentCommentAsync(string owner, string repo, int issueNumber, string commentBody);
+    Task<Octokit.TreeResponse> GetTreeRecursiveAsync(string owner, string repo, string branch = "main");
+    Task<string?> GetFileContentAsync(string owner, string repo, string path, string branch = "main");
+    Task AssignCopilotAgentAsync(string owner, string repo, int issueNumber, string customInstructions, string baseBranch = "main", string model = "");
+    Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]");
+    Task<PullRequest?> GetPullRequestAsync(string owner, string repo, int prNumber);
+    Task RemoveLabelAsync(string owner, string repo, int issueNumber, string label);
+    /// <summary>Delete a branch (typically after PR merge).</summary>
+    Task<bool> DeleteBranchAsync(string owner, string repo, string branchRef);
+    /// <summary>Find the most recent workflow run triggered after a given time.</summary>
+    Task<(long runId, string status, string conclusion)?> GetLatestWorkflowRunAsync(string owner, string repo, string branch, DateTime afterUtc);
 }
 
 public class GitHubService : IGitHubService
 {
     private readonly GitHubClient _client;
+    private readonly string _token;
     private readonly ILogger<GitHubService> _logger;
 
     public GitHubService(IConfiguration configuration, ILogger<GitHubService> logger)
     {
         _logger = logger;
 
-        var token = configuration["GitHub:PersonalAccessToken"]
+        _token = configuration["GitHub:PersonalAccessToken"]
             ?? throw new InvalidOperationException("GitHub:PersonalAccessToken is not configured.");
 
-        _client = new GitHubClient(new ProductHeaderValue("AIDev-Pipeline"))
+        _client = new GitHubClient(new Octokit.ProductHeaderValue("AIDev-Pipeline"))
         {
-            Credentials = new Credentials(token)
+            Credentials = new Credentials(_token)
         };
     }
 
@@ -162,6 +177,207 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task AddLabelAsync(string owner, string repo, int issueNumber, string label, string color)
+    {
+        try
+        {
+            try { await _client.Issue.Labels.Get(owner, repo, label); }
+            catch (NotFoundException)
+            {
+                await _client.Issue.Labels.Create(owner, repo, new NewLabel(label, color));
+            }
+            await _client.Issue.Labels.AddToIssue(owner, repo, issueNumber, new[] { label });
+            _logger.LogInformation("Added label '{Label}' to GitHub Issue #{IssueNumber}", label, issueNumber);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to add label '{Label}' to GitHub Issue #{IssueNumber}", label, issueNumber);
+        }
+    }
+
+    public async Task<TreeResponse> GetTreeRecursiveAsync(string owner, string repo, string branch = "main")
+    {
+        try
+        {
+            var tree = await _client.Git.Tree.GetRecursive(owner, repo, branch);
+            _logger.LogInformation("Fetched repository tree for {Owner}/{Repo} ({Count} items)", owner, repo, tree.Tree.Count);
+            return tree;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get repository tree for {Owner}/{Repo}", owner, repo);
+            throw;
+        }
+    }
+
+    public async Task<string?> GetFileContentAsync(string owner, string repo, string path, string branch = "main")
+    {
+        try
+        {
+            var contents = await _client.Repository.Content.GetAllContentsByRef(owner, repo, path, branch);
+            if (contents.Count > 0 && contents[0].Type == ContentType.File)
+            {
+                return contents[0].Content;
+            }
+            return null;
+        }
+        catch (NotFoundException)
+        {
+            _logger.LogWarning("File not found: {Owner}/{Repo}/{Path}", owner, repo, path);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get file content for {Owner}/{Repo}/{Path}", owner, repo, path);
+            return null;
+        }
+    }
+
+    public async Task AssignCopilotAgentAsync(string owner, string repo, int issueNumber, string customInstructions, string baseBranch = "main", string model = "")
+    {
+        try
+        {
+            // The Copilot coding agent assignment uses the REST API directly
+            // because Octokit.net doesn't natively support agent_assignment
+            using var httpClient = new HttpClient();
+            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
+            httpClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            httpClient.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+            httpClient.DefaultRequestHeaders.UserAgent.ParseAdd("AIDev-Pipeline");
+
+            var payload = new
+            {
+                assignees = new[] { "copilot-swe-agent[bot]" },
+                agent_assignment = new
+                {
+                    target_repo = $"{owner}/{repo}",
+                    base_branch = baseBranch,
+                    custom_instructions = customInstructions,
+                    custom_agent = "",
+                    model = model
+                }
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            var response = await httpClient.PostAsync(
+                $"https://api.github.com/repos/{owner}/{repo}/issues/{issueNumber}/assignees",
+                content);
+
+            response.EnsureSuccessStatusCode();
+
+            _logger.LogInformation(
+                "Assigned copilot-swe-agent[bot] to Issue #{IssueNumber} in {Owner}/{Repo}",
+                issueNumber, owner, repo);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to assign Copilot agent to Issue #{IssueNumber} in {Owner}/{Repo}",
+                issueNumber, owner, repo);
+            throw;
+        }
+    }
+
+    public async Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]")
+    {
+        try
+        {
+            var prs = await _client.PullRequest.GetAllForRepository(owner, repo,
+                new PullRequestRequest { State = ItemStateFilter.All });
+
+            // Find PRs by the Copilot bot that reference this issue
+            var match = prs.FirstOrDefault(pr =>
+                pr.User.Login.Equals(author, StringComparison.OrdinalIgnoreCase)
+                && (pr.Body?.Contains($"#{issueNumber}") == true
+                    || pr.Title?.Contains($"#{issueNumber}") == true));
+
+            if (match != null)
+            {
+                _logger.LogInformation("Found PR #{PrNumber} by {Author} for Issue #{IssueNumber}",
+                    match.Number, author, issueNumber);
+            }
+
+            return match;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to find PR for Issue #{IssueNumber} by {Author}", issueNumber, author);
+            return null;
+        }
+    }
+
+    public async Task<PullRequest?> GetPullRequestAsync(string owner, string repo, int prNumber)
+    {
+        try
+        {
+            var pr = await _client.PullRequest.Get(owner, repo, prNumber);
+            return pr;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get PR #{PrNumber} in {Owner}/{Repo}", prNumber, owner, repo);
+            return null;
+        }
+    }
+
+    public async Task RemoveLabelAsync(string owner, string repo, int issueNumber, string label)
+    {
+        try
+        {
+            await _client.Issue.Labels.RemoveFromIssue(owner, repo, issueNumber, label);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to remove label '{Label}' from Issue #{IssueNumber}", label, issueNumber);
+        }
+    }
+
+    public async Task<bool> DeleteBranchAsync(string owner, string repo, string branchRef)
+    {
+        try
+        {
+            // GitHub API: DELETE /repos/{owner}/{repo}/git/refs/heads/{branch}
+            await _client.Git.Reference.Delete(owner, repo, $"heads/{branchRef}");
+            _logger.LogInformation("Deleted branch '{Branch}' in {Owner}/{Repo}", branchRef, owner, repo);
+            return true;
+        }
+        catch (NotFoundException)
+        {
+            _logger.LogWarning("Branch '{Branch}' not found in {Owner}/{Repo} — may already be deleted", branchRef, owner, repo);
+            return true; // Already gone, treat as success
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete branch '{Branch}' in {Owner}/{Repo}", branchRef, owner, repo);
+            return false;
+        }
+    }
+
+    public async Task<(long runId, string status, string conclusion)?> GetLatestWorkflowRunAsync(
+        string owner, string repo, string branch, DateTime afterUtc)
+    {
+        try
+        {
+            var runs = await _client.Actions.Workflows.Runs.List(owner, repo,
+                new Octokit.WorkflowRunsRequest { Branch = branch });
+
+            var recent = runs.WorkflowRuns
+                .Where(r => r.CreatedAt.UtcDateTime >= afterUtc)
+                .OrderByDescending(r => r.CreatedAt)
+                .FirstOrDefault();
+
+            if (recent == null) return null;
+
+            return (recent.Id, recent.Status.StringValue ?? "unknown", recent.Conclusion?.StringValue ?? "");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to query workflow runs for {Owner}/{Repo} branch {Branch}", owner, repo, branch);
+            return null;
+        }
+    }
+
     private static string FormatIssueBody(DevRequest request)
     {
         var body = $"""
@@ -255,5 +471,60 @@ public class NullGitHubService : IGitHubService
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping agent comment.");
         return Task.CompletedTask;
+    }
+
+    public Task AddLabelAsync(string owner, string repo, int issueNumber, string label, string color)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping label.");
+        return Task.CompletedTask;
+    }
+
+    public Task<Octokit.TreeResponse> GetTreeRecursiveAsync(string owner, string repo, string branch = "main")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning empty tree.");
+        throw new InvalidOperationException("GitHub integration is not configured.");
+    }
+
+    public Task<string?> GetFileContentAsync(string owner, string repo, string path, string branch = "main")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning null file content.");
+        return Task.FromResult<string?>(null);
+    }
+
+    public Task AssignCopilotAgentAsync(string owner, string repo, int issueNumber, string customInstructions, string baseBranch = "main", string model = "")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping Copilot assignment.");
+        return Task.CompletedTask;
+    }
+
+    public Task<PullRequest?> FindPrByIssueAndAuthorAsync(string owner, string repo, int issueNumber, string author = "copilot-swe-agent[bot]")
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning null PR.");
+        return Task.FromResult<PullRequest?>(null);
+    }
+
+    public Task<PullRequest?> GetPullRequestAsync(string owner, string repo, int prNumber)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Returning null PR.");
+        return Task.FromResult<PullRequest?>(null);
+    }
+
+    public Task RemoveLabelAsync(string owner, string repo, int issueNumber, string label)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping label removal.");
+        return Task.CompletedTask;
+    }
+
+    public Task<bool> DeleteBranchAsync(string owner, string repo, string branchRef)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping branch deletion.");
+        return Task.FromResult(false);
+    }
+
+    public Task<(long runId, string status, string conclusion)?> GetLatestWorkflowRunAsync(
+        string owner, string repo, string branch, DateTime afterUtc)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping workflow run query.");
+        return Task.FromResult<(long runId, string status, string conclusion)?>(null);
     }
 }

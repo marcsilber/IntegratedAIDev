@@ -21,6 +21,7 @@ public enum RequestStatus
     New,
     NeedsClarification,
     Triaged,
+    ArchitectReview,
     Approved,
     InProgress,
     Done,
@@ -32,4 +33,42 @@ public enum AgentDecision
     Approve,
     Reject,
     Clarify
+}
+
+public enum ArchitectDecision
+{
+    Pending,
+    Approved,
+    Rejected,
+    Revised
+}
+
+public enum CopilotImplementationStatus
+{
+    Pending,    // Issue assigned to Copilot, waiting for session to start
+    Working,    // Copilot is actively implementing
+    PrOpened,   // Copilot opened a PR, awaiting human review
+    PrMerged,   // PR merged — implementation complete
+    Failed      // Copilot couldn't complete the task
+}
+
+/// <summary>
+/// Tracks whether a merged PR has been deployed to the UAT environment.
+/// </summary>
+public enum DeploymentStatus
+{
+    None,           // No deployment tracked yet
+    Pending,        // Merge detected, waiting for GitHub Actions workflow
+    InProgress,     // Workflow run detected and running
+    Succeeded,      // Deployment workflow completed successfully
+    Failed          // Deployment workflow failed
+}
+
+/// <summary>
+/// Severity of a pipeline stall alert.
+/// </summary>
+public enum StallSeverity
+{
+    Warning,
+    Critical
 }

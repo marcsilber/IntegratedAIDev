@@ -11,10 +11,17 @@ import {
   deleteAttachment,
   overrideAgentReview,
   triggerReReview,
+  getArchitectReviews,
+  triggerArchitectReAnalysis,
+  getImplementationStatus,
   type DevRequest,
   type RequestStatus,
   type Attachment,
+  type ArchitectReviewResponse,
+  type ImplementationStatus,
 } from "../services/api";
+import ArchitectReviewPanel from "./ArchitectReviewPanel";
+import ImplementationPanel from "./ImplementationPanel";
 
 /** Renders an image by fetching through the authenticated API client. */
 function AuthImage({ requestId, attachment }: { requestId: number; attachment: Attachment }) {
@@ -46,6 +53,7 @@ const statusOptions: RequestStatus[] = [
   "New",
   "NeedsClarification",
   "Triaged",
+  "ArchitectReview",
   "Approved",
   "InProgress",
   "Done",
@@ -56,6 +64,7 @@ const statusColors: Record<RequestStatus, string> = {
   New: "#3b82f6",
   NeedsClarification: "#f97316",
   Triaged: "#8b5cf6",
+  ArchitectReview: "#6366f1",
   Approved: "#10b981",
   InProgress: "#f59e0b",
   Done: "#22c55e",
@@ -79,6 +88,8 @@ export default function RequestDetail() {
   const [commentLoading, setCommentLoading] = useState(false);
   const [uploadLoading, setUploadLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [architectReviews, setArchitectReviews] = useState<ArchitectReviewResponse[]>([]);
+  const [implStatus, setImplStatus] = useState<ImplementationStatus | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -90,6 +101,20 @@ export default function RequestDetail() {
     try {
       const data = await getRequest(requestId);
       setRequest(data);
+      // Load architect reviews for this request
+      try {
+        const reviews = await getArchitectReviews({ requestId });
+        setArchitectReviews(reviews);
+      } catch {
+        // Architect reviews are optional — don't fail the page
+      }
+      // Load implementation status
+      try {
+        const status = await getImplementationStatus(requestId);
+        setImplStatus(status);
+      } catch {
+        // Implementation status is optional
+      }
     } catch {
       setError("Failed to load request");
     } finally {
@@ -410,6 +435,48 @@ export default function RequestDetail() {
                 Review #{request.agentReviewCount} · Tokens: {request.latestAgentReview.promptTokens + request.latestAgentReview.completionTokens}
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Architect Review Panel */}
+        {architectReviews.length > 0 && (
+          <div className="detail-section">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2>Architect Solution Proposals ({architectReviews.length})</h2>
+              <button
+                className="btn btn-sm btn-secondary"
+                onClick={async () => {
+                  if (!window.confirm("Queue this request for a fresh architecture analysis?")) return;
+                  try {
+                    await triggerArchitectReAnalysis(request.id);
+                    loadRequest(request.id);
+                  } catch { setError("Failed to trigger re-analysis"); }
+                }}
+                title="Reset architect review count and queue for fresh analysis"
+              >
+                Re-analyse
+              </button>
+            </div>
+            {architectReviews.map((review) => (
+              <ArchitectReviewPanel
+                key={review.id}
+                review={review}
+                onUpdated={() => loadRequest(request.id)}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Implementation Panel */}
+        {(request.status === "Approved" || request.status === "InProgress" || request.status === "Done" ||
+          implStatus?.copilotStatus) && (
+          <div className="detail-section">
+            <ImplementationPanel
+              requestId={request.id}
+              requestStatus={request.status}
+              implementationStatus={implStatus}
+              onStatusChange={() => loadRequest(request.id)}
+            />
           </div>
         )}
 
