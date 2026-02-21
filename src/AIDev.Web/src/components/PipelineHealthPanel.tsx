@@ -135,7 +135,7 @@ export default function PipelineHealthPanel() {
                   <tr key={s.requestId}>
                     <td>{s.requestId}</td>
                     <td>
-                      <Link to={`/requests/${s.requestId}`}>{s.title}</Link>
+                      <Link to={`/requests/${s.requestId}`} className="request-link">{s.title}</Link>
                     </td>
                     <td>
                       <span className="badge">{s.status}</span>
@@ -189,7 +189,7 @@ export default function PipelineHealthPanel() {
                   <tr key={d.requestId}>
                     <td>{d.requestId}</td>
                     <td>
-                      <Link to={`/requests/${d.requestId}`}>{d.title}</Link>
+                      <Link to={`/requests/${d.requestId}`} className="request-link">{d.title}</Link>
                     </td>
                     <td>
                       {d.prNumber ? (

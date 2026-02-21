@@ -137,7 +137,7 @@ export default function DashboardView() {
                 <tr key={r.id}>
                   <td>{r.id}</td>
                   <td>
-                    <Link to={`/requests/${r.id}`}>{r.title}</Link>
+                    <Link to={`/requests/${r.id}`} className="request-link">{r.title}</Link>
                   </td>
                   <td>
                     <span className="badge">{r.status}</span>
