@@ -99,6 +99,8 @@ public class ArchitectLlmService : IArchitectLlmService
           component files that render the affected UI, not just the "main" stylesheet
         - For UI issues: include EVERY component that could be affected, even if not
           explicitly mentioned — thoroughness prevents incomplete fixes
+        - ALWAYS include index.css, App.css, and any global stylesheet — CSS issues often
+          stem from global defaults (e.g. #root, body, html) overriding specific rules
         - When in doubt, include more files rather than fewer
 
         Return ONLY a JSON array of strings. No markdown, no code fences, no explanation.
@@ -228,6 +230,22 @@ public class ArchitectLlmService : IArchitectLlmService
         12. The impactedFiles "description" field should say EXACTLY what change is needed in that
             file — not vague descriptions like "update styles" but specific ones like
             "Remove conflicting --text variable definition on line 2 that overrides App.css".
+        13. NEVER TRUST PRIOR OPINIONS BLINDLY: The Product Owner Agent may say a feature
+            "already exists" or a request is "redundant". You MUST independently verify this
+            claim by examining the actual code. If the code contradicts the PO's assessment
+            (e.g. there IS a problem despite the PO saying it's "already fixed"), trust the
+            code and the user's report, not the PO. Your job is to find the truth.
+        14. CSS CASCADE ANALYSIS: For any CSS/styling issue, trace the FULL cascade from the
+            root element down. Check #root, body, html, and :root for global defaults FIRST.
+            A selector like `text-align: left` on `.some-class` does NOT prove the global
+            default is correct — the issue may be in a different selector (e.g. #root in
+            index.css setting `text-align: center`). Always identify the HIGHEST-LEVEL
+            conflicting rule, not just the most specific one.
+        15. IMAGE EVIDENCE VS CODE ANALYSIS: If an attached screenshot/image shows a visible
+            bug (e.g. centered text, invisible text, wrong colours), and your code analysis
+            suggests the issue is "already fixed" — your code analysis is WRONG. The image
+            is ground truth. Re-examine the code more carefully to find what you missed.
+            Never conclude "no changes needed" if a screenshot shows otherwise.
         """;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
