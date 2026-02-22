@@ -123,12 +123,13 @@ public class CodeReviewLlmService : ICodeReviewLlmService
         IConfiguration configuration,
         ILogger<CodeReviewLlmService> logger)
     {
-        _chatClient = clientFactory.CreateChatClient();
-        _modelName = clientFactory.ModelName;
+        _modelName = configuration["CodeReviewAgent:ModelName"] ?? clientFactory.ModelName;
+        _chatClient = clientFactory.CreateChatClient(_modelName);
         _systemPrompts = systemPrompts;
         _configuration = configuration;
         _logger = logger;
 
+        _logger.LogInformation("CodeReview agent using model: {Model}", _modelName);
         var maxInputTokens = int.Parse(configuration["CodeReviewAgent:MaxInputTokens"] ?? "6000");
         _maxInputChars = maxInputTokens * 4; // rough char-to-token ratio
     }
