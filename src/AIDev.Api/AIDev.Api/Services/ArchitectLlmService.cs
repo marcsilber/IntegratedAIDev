@@ -522,11 +522,32 @@ public class ArchitectLlmService : IArchitectLlmService
         if (conversationHistory is { Count: > 0 })
         {
             sb.AppendLine();
-            sb.AppendLine("PRIOR CONVERSATION:");
-            foreach (var comment in conversationHistory.OrderBy(c => c.CreatedAt))
+            // For file selection, focus on HUMAN feedback (most relevant for picking files)
+            var humanFeedback = conversationHistory
+                .Where(c => !c.IsAgentComment)
+                .OrderBy(c => c.CreatedAt)
+                .ToList();
+
+            if (humanFeedback.Count > 0)
             {
-                var source = comment.IsAgentComment ? "Agent" : "Human";
-                sb.AppendLine($"[{source}] {comment.Content}");
+                sb.AppendLine("HUMAN FEEDBACK (select files relevant to these points):");
+                foreach (var comment in humanFeedback)
+                {
+                    sb.AppendLine($"  >> {comment.Content}");
+                }
+            }
+            else
+            {
+                sb.AppendLine("PRIOR CONVERSATION:");
+                foreach (var comment in conversationHistory.OrderBy(c => c.CreatedAt))
+                {
+                    var source = comment.IsAgentComment ? "Agent" : "Human";
+                    // Truncate agent proposals to save tokens in file selection
+                    var text = comment.IsAgentComment && comment.Content.Length > 300
+                        ? comment.Content[..300] + "..."
+                        : comment.Content;
+                    sb.AppendLine($"[{source}] {text}");
+                }
             }
         }
 
@@ -587,7 +608,57 @@ public class ArchitectLlmService : IArchitectLlmService
         List<Attachment>? attachments = null)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("Design a technical solution for the following request:");
+
+        // Determine if this is a revision (has human feedback)
+        var humanComments = conversationHistory?
+            .Where(c => !c.IsAgentComment)
+            .OrderBy(c => c.CreatedAt)
+            .ToList();
+        var agentComments = conversationHistory?
+            .Where(c => c.IsAgentComment)
+            .OrderBy(c => c.CreatedAt)
+            .ToList();
+        var isRevision = humanComments is { Count: > 0 };
+
+        if (isRevision)
+        {
+            // REVISION MODE: Lead with human feedback so the model prioritises it
+            sb.AppendLine("══════════════════════════════════════════════════════════");
+            sb.AppendLine("THIS IS A REVISION. The human has reviewed your previous");
+            sb.AppendLine("proposal and provided feedback. You MUST substantially");
+            sb.AppendLine("change your design to address EVERY point below.");
+            sb.AppendLine("DO NOT repeat the same solution — improve it.");
+            sb.AppendLine("══════════════════════════════════════════════════════════");
+            sb.AppendLine();
+            sb.AppendLine("HUMAN FEEDBACK — ADDRESS EVERY POINT:");
+            foreach (var comment in humanComments!)
+            {
+                sb.AppendLine($"  >> {comment.Content}");
+            }
+            sb.AppendLine();
+            sb.AppendLine("Your 'feedbackResponse' field MUST directly answer each point above,");
+            sb.AppendLine("explaining what you changed and why.");
+            sb.AppendLine("══════════════════════════════════════════════════════════");
+            sb.AppendLine();
+
+            // Show previous proposal so the model knows what to improve
+            if (agentComments is { Count: > 0 })
+            {
+                sb.AppendLine("YOUR PREVIOUS PROPOSAL (to revise — do NOT copy this unchanged):");
+                // Show the last agent proposal in full (up to 2000 chars) for context
+                var lastProposal = agentComments.Last();
+                var proposalText = lastProposal.Content.Length > 2000
+                    ? lastProposal.Content[..2000] + "\n[...truncated]"
+                    : lastProposal.Content;
+                sb.AppendLine(proposalText);
+                sb.AppendLine();
+            }
+        }
+        else
+        {
+            sb.AppendLine("Design a technical solution for the following request:");
+        }
+
         sb.AppendLine();
         sb.AppendLine($"Title: {request.Title}");
         sb.AppendLine($"Type: {request.RequestType}");
@@ -616,46 +687,17 @@ public class ArchitectLlmService : IArchitectLlmService
             sb.AppendLine("Your solution MUST include instructions to move them to the correct location and delete the `_temp-attachments/` folder.");
         }
 
-        if (conversationHistory is { Count: > 0 })
+        // For non-revision mode, include any prior proposals as context
+        if (!isRevision && agentComments is { Count: > 0 })
         {
-            // Separate human feedback (critical) from agent history (context)
-            var humanComments = conversationHistory
-                .Where(c => !c.IsAgentComment)
-                .OrderBy(c => c.CreatedAt)
-                .ToList();
-            var agentComments = conversationHistory
-                .Where(c => c.IsAgentComment)
-                .OrderBy(c => c.CreatedAt)
-                .ToList();
-
-            // Show prior agent proposals as brief summaries (not full text)
-            if (agentComments.Count > 0)
+            sb.AppendLine();
+            sb.AppendLine("PRIOR PROPOSALS (summaries of previous architect solutions):");
+            foreach (var comment in agentComments)
             {
-                sb.AppendLine();
-                sb.AppendLine("PRIOR PROPOSALS (summaries of previous architect solutions):");
-                foreach (var comment in agentComments)
-                {
-                    // Extract just the first 200 chars as a summary
-                    var summary = comment.Content.Length > 200
-                        ? comment.Content[..200] + "..."
-                        : comment.Content;
-                    sb.AppendLine($"[Prior Proposal] {summary}");
-                }
-            }
-
-            // Human feedback gets its own prominent section
-            if (humanComments.Count > 0)
-            {
-                sb.AppendLine();
-                sb.AppendLine("═══════════════════════════════════════════════════");
-                sb.AppendLine("HUMAN FEEDBACK — YOU MUST ADDRESS EVERY POINT BELOW:");
-                sb.AppendLine("═══════════════════════════════════════════════════");
-                foreach (var comment in humanComments)
-                {
-                    sb.AppendLine($"[Human] {comment.Content}");
-                }
-                sb.AppendLine("═══════════════════════════════════════════════════");
-                sb.AppendLine("Your response MUST include a 'feedbackResponse' field that directly answers each point raised above.");
+                var summary = comment.Content.Length > 500
+                    ? comment.Content[..500] + "..."
+                    : comment.Content;
+                sb.AppendLine($"[Prior Proposal] {summary}");
             }
         }
 
