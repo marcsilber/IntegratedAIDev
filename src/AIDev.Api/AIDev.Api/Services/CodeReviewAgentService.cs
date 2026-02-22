@@ -22,7 +22,11 @@ public class CodeReviewAgentService : BackgroundService
     private bool IsEnabled => bool.Parse(_configuration["CodeReviewAgent:Enabled"] ?? "true");
     private bool AutoMerge => bool.Parse(_configuration["CodeReviewAgent:AutoMerge"] ?? "true");
     private int MinQualityScore => int.Parse(_configuration["CodeReviewAgent:MinQualityScore"] ?? "6");
+    private int MaxReviewsPerPr => int.Parse(_configuration["CodeReviewAgent:MaxReviewsPerPr"] ?? "3");
     private bool IsStagedMode => string.Equals(_configuration["PipelineOrchestrator:DeploymentMode"], "Staged", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>Tracks (prNumber:headSha) pairs already reviewed to avoid re-reviewing unchanged PRs.</summary>
+    private readonly HashSet<string> _reviewedShas = new();
 
     public CodeReviewAgentService(
         IServiceScopeFactory scopeFactory,
@@ -91,12 +95,53 @@ public class CodeReviewAgentService : BackgroundService
 
         foreach (var request in prReadyRequests)
         {
-            // Skip if already reviewed (avoid re-reviewing)
-            if (request.CodeReviews.Any(cr => cr.PrNumber == request.CopilotPrNumber))
+            // Check review history for this PR
+            var latestReview = request.CodeReviews
+                .Where(cr => cr.PrNumber == request.CopilotPrNumber)
+                .OrderByDescending(cr => cr.CreatedAt)
+                .FirstOrDefault();
+
+            if (latestReview != null)
             {
-                _logger.LogDebug("CodeReview: PR #{PrNumber} for request #{Id} already reviewed, skipping",
-                    request.CopilotPrNumber, request.Id);
-                continue;
+                // Already approved — skip
+                if (latestReview.Decision == CodeReviewDecision.Approved)
+                {
+                    _logger.LogDebug("CodeReview: PR #{PrNumber} for request #{Id} already approved, skipping",
+                        request.CopilotPrNumber, request.Id);
+                    continue;
+                }
+
+                // Changes requested — allow re-review if new commits and under max review count
+                if (latestReview.Decision == CodeReviewDecision.ChangesRequested)
+                {
+                    var reviewCount = request.CodeReviews.Count(cr => cr.PrNumber == request.CopilotPrNumber);
+                    if (reviewCount >= MaxReviewsPerPr)
+                    {
+                        _logger.LogDebug(
+                            "CodeReview: PR #{PrNumber} for request #{Id} reached max review count ({Count}/{Max}), skipping",
+                            request.CopilotPrNumber, request.Id, reviewCount, MaxReviewsPerPr);
+                        continue;
+                    }
+
+                    // Fetch PR to check head SHA — only re-review if Copilot pushed new commits
+                    var owner = request.Project?.GitHubOwner ?? _configuration["GitHub:Owner"] ?? "";
+                    var repo = request.Project?.GitHubRepo ?? _configuration["GitHub:Repo"] ?? "IntegratedAIDev";
+                    var prForCheck = await _gitHubService.GetPullRequestAsync(owner, repo, request.CopilotPrNumber!.Value);
+                    var headSha = prForCheck?.Head?.Sha ?? "";
+                    var shaKey = $"{request.CopilotPrNumber}:{headSha}";
+
+                    if (string.IsNullOrEmpty(headSha) || _reviewedShas.Contains(shaKey))
+                    {
+                        _logger.LogDebug(
+                            "CodeReview: PR #{PrNumber} for request #{Id} has no new commits since last review, skipping",
+                            request.CopilotPrNumber, request.Id);
+                        continue;
+                    }
+
+                    _logger.LogInformation(
+                        "CodeReview: PR #{PrNumber} was previously ChangesRequested but has new commits (SHA: {Sha}). Re-reviewing (review {Count}/{Max}).",
+                        request.CopilotPrNumber, headSha[..7], reviewCount + 1, MaxReviewsPerPr);
+                }
             }
 
             try
@@ -153,6 +198,11 @@ public class CodeReviewAgentService : BackgroundService
         var filesChanged = pr?.ChangedFiles ?? 0;
         var linesAdded = pr?.Additions ?? 0;
         var linesRemoved = pr?.Deletions ?? 0;
+        var headSha = pr?.Head?.Sha ?? "";
+
+        // Track this SHA so we don't re-review the same commit
+        if (!string.IsNullOrEmpty(headSha))
+            _reviewedShas.Add($"{prNumber}:{headSha}");
 
         // 4. Call LLM to review
         var result = await _codeReviewLlmService.ReviewPrAsync(

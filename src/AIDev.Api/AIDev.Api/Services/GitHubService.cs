@@ -34,6 +34,8 @@ public interface IGitHubService
     Task<bool> RequestChangesOnPullRequestAsync(string owner, string repo, int prNumber, string body);
     /// <summary>Mark a draft PR as ready for review.</summary>
     Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber);
+    /// <summary>Change the base branch of a pull request (e.g., retarget from prep branch to main).</summary>
+    Task<bool> UpdatePrBaseAsync(string owner, string repo, int prNumber, string newBase);
     /// <summary>Update a PR branch by merging the base branch into it. Returns true if successful, false if conflicts exist.</summary>
     Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber);
     /// <summary>Check how many commits the PR branch is behind the base branch.</summary>
@@ -551,6 +553,25 @@ public class GitHubService : IGitHubService
         }
     }
 
+    public async Task<bool> UpdatePrBaseAsync(string owner, string repo, int prNumber, string newBase)
+    {
+        try
+        {
+            var update = new PullRequestUpdate { Base = newBase };
+            await _client.PullRequest.Update(owner, repo, prNumber, update);
+            _logger.LogInformation(
+                "Retargeted PR #{PrNumber} base to '{NewBase}' in {Owner}/{Repo}",
+                prNumber, newBase, owner, repo);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to retarget PR #{PrNumber} base to '{NewBase}' in {Owner}/{Repo}",
+                prNumber, newBase, owner, repo);
+            return false;
+        }
+    }
+
     public async Task<bool> UpdatePrBranchAsync(string owner, string repo, int prNumber)
     {
         try
@@ -1057,6 +1078,12 @@ public class NullGitHubService : IGitHubService
     public Task<bool> MarkPrReadyForReviewAsync(string owner, string repo, int prNumber)
     {
         _logger.LogWarning("GitHub integration is not configured. Skipping mark ready.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> UpdatePrBaseAsync(string owner, string repo, int prNumber, string newBase)
+    {
+        _logger.LogWarning("GitHub integration is not configured. Skipping PR base update.");
         return Task.FromResult(false);
     }
 

@@ -120,6 +120,29 @@ public class PrMonitorService : BackgroundService
                 request.CopilotStatus = CopilotImplementationStatus.PrOpened;
                 request.CopilotBranchName = pr.Head?.Ref;
                 request.UpdatedAt = DateTime.UtcNow;
+
+                // If the PR targets a prep branch (attachments/request-*), retarget to main
+                var prBase = pr.Base?.Ref;
+                if (!string.IsNullOrEmpty(prBase) && prBase.StartsWith("attachments/", StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogInformation(
+                        "PrMonitor: PR #{PrNumber} targets prep branch '{Base}' — retargeting to main",
+                        pr.Number, prBase);
+
+                    var retargeted = await _gitHubService.UpdatePrBaseAsync(owner, repo, pr.Number, "main");
+                    if (retargeted)
+                    {
+                        _logger.LogInformation("PrMonitor: Successfully retargeted PR #{PrNumber} to main", pr.Number);
+
+                        // Delete the prep branch since it's no longer needed as the PR base
+                        await _gitHubService.DeleteBranchAsync(owner, repo, prBase);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("PrMonitor: Failed to retarget PR #{PrNumber} — it still targets '{Base}'", pr.Number, prBase);
+                    }
+                }
+
                 await db.SaveChangesAsync(ct);
 
                 // Update GitHub labels
