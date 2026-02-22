@@ -12,7 +12,7 @@ import RequestDetail from "./components/RequestDetail";
 import DashboardView from "./components/Dashboard";
 import AdminSettings from "./components/AdminSettings";
 import ArchitectReferencePanel from "./components/ArchitectReferencePanel";
-import logoImg from "./assets/silver-bullet-logo.png";
+import logoImg from "./assets/logo.png";
 import "./App.css";
 
 function App() {
@@ -33,7 +33,6 @@ function App() {
         <nav className="navbar">
           <div className="nav-brand">
             <img src={logoImg} className="nav-logo" alt="AI Dev Pipeline" />
-            <span className="nav-title">AI Dev Pipeline</span>
           </div>
           <div className="nav-links">
             {isAuthenticated && (
