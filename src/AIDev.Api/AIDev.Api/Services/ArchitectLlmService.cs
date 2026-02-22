@@ -644,15 +644,19 @@ public class ArchitectLlmService : IArchitectLlmService
             // Show previous proposal so the model knows what to improve
             if (agentComments is { Count: > 0 })
             {
-                sb.AppendLine("YOUR PREVIOUS PROPOSAL (to revise — do NOT copy this unchanged):");
-                // Show the last agent proposal in full (up to 2000 chars) for context
+                sb.AppendLine("YOUR PREVIOUS PROPOSAL (for reference — do NOT copy format, output JSON only):");
+                // Show the last agent proposal's core content (up to 1500 chars)
                 var lastProposal = agentComments.Last();
-                var proposalText = lastProposal.Content.Length > 2000
-                    ? lastProposal.Content[..2000] + "\n[...truncated]"
+                var proposalText = lastProposal.Content.Length > 1500
+                    ? lastProposal.Content[..1500] + "\n[...truncated]"
                     : lastProposal.Content;
                 sb.AppendLine(proposalText);
                 sb.AppendLine();
             }
+
+            sb.AppendLine("IMPORTANT: Respond with valid JSON matching the schema in the system prompt.");
+            sb.AppendLine("DO NOT output markdown or free text. Output ONLY the JSON object.");
+            sb.AppendLine();
         }
         else
         {
