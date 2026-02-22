@@ -23,6 +23,17 @@ import {
 import ArchitectReviewPanel from "./ArchitectReviewPanel";
 import ImplementationPanel from "./ImplementationPanel";
 
+/** Parses markdown-style **bold** markers into <strong> React elements. */
+function renderMarkdownBold(text: string): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
 /** Renders an image by fetching through the authenticated API client. */
 function AuthImage({ requestId, attachment }: { requestId: number; attachment: Attachment }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -364,7 +375,7 @@ export default function RequestDetail() {
                 </span>
               </div>
 
-              <p style={{ marginBottom: "0.75rem" }}>{request.latestAgentReview.reasoning}</p>
+              <p style={{ marginBottom: "0.75rem", whiteSpace: "pre-wrap" }}>{renderMarkdownBold(request.latestAgentReview.reasoning)}</p>
 
               <div className="agent-scores" style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem" }}>
                 <div>
@@ -502,7 +513,7 @@ export default function RequestDetail() {
                       {new Date(c.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p style={{ whiteSpace: "pre-wrap" }}>{c.content}</p>
+                  <p style={{ whiteSpace: "pre-wrap" }}>{renderMarkdownBold(c.content)}</p>
                 </div>
               ))}
             </div>
