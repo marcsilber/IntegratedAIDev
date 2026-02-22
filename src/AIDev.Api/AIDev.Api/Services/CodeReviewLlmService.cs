@@ -62,6 +62,7 @@ public class CodeReviewLlmService : ICodeReviewLlmService
 {
     private readonly ChatClient _chatClient;
     private readonly IConfiguration _configuration;
+    private readonly ISystemPromptService _systemPrompts;
     private readonly ILogger<CodeReviewLlmService> _logger;
     private readonly string _modelName;
     private readonly int _maxInputChars;
@@ -118,11 +119,13 @@ public class CodeReviewLlmService : ICodeReviewLlmService
 
     public CodeReviewLlmService(
         ILlmClientFactory clientFactory,
+        ISystemPromptService systemPrompts,
         IConfiguration configuration,
         ILogger<CodeReviewLlmService> logger)
     {
         _chatClient = clientFactory.CreateChatClient();
         _modelName = clientFactory.ModelName;
+        _systemPrompts = systemPrompts;
         _configuration = configuration;
         _logger = logger;
 
@@ -181,7 +184,7 @@ public class CodeReviewLlmService : ICodeReviewLlmService
 
         var messages = new List<ChatMessage>
         {
-            new SystemChatMessage(SystemPrompt),
+            new SystemChatMessage(_systemPrompts.GetPrompt(SystemPromptService.Keys.CodeReview)),
             new UserChatMessage(userMessage.ToString())
         };
 

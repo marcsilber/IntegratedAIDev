@@ -23,6 +23,7 @@ else
 
 // ── Product Owner Agent ───────────────────────────────────────────────────
 builder.Services.AddSingleton<IReferenceDocumentService, ReferenceDocumentService>();
+builder.Services.AddSingleton<ISystemPromptService, SystemPromptService>();
 if (!string.IsNullOrWhiteSpace(gitHubToken))
 {
     builder.Services.AddSingleton<ILlmClientFactory, LlmClientFactory>();
@@ -76,6 +77,10 @@ using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     db.Database.Migrate();
+
+    // Seed default system prompts
+    var promptService = app.Services.GetRequiredService<ISystemPromptService>();
+    await promptService.SeedDefaultsAsync();
 }
 
 // ── Middleware Pipeline ───────────────────────────────────────────────────

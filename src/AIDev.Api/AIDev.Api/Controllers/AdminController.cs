@@ -15,11 +15,13 @@ public class AdminController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly IGitHubService _gitHub;
+    private readonly ISystemPromptService _prompts;
 
-    public AdminController(AppDbContext db, IGitHubService gitHub)
+    public AdminController(AppDbContext db, IGitHubService gitHub, ISystemPromptService prompts)
     {
         _db = db;
         _gitHub = gitHub;
+        _prompts = prompts;
     }
 
     /// <summary>
@@ -136,6 +138,71 @@ public class AdminController : ControllerBase
             IsActive = project.IsActive,
             LastSyncedAt = project.LastSyncedAt,
             RequestCount = project.Requests.Count
+        });
+    }
+
+    // ── System Prompt Endpoints ───────────────────────────────────────────
+
+    /// <summary>
+    /// Get all system prompts for admin editing.
+    /// </summary>
+    [HttpGet("prompts")]
+    public async Task<ActionResult<List<SystemPromptDto>>> GetPrompts()
+    {
+        var prompts = await _prompts.GetAllAsync();
+        return Ok(prompts.Select(p => new SystemPromptDto
+        {
+            Id = p.Id,
+            Key = p.Key,
+            DisplayName = p.DisplayName,
+            Description = p.Description,
+            PromptText = p.PromptText,
+            UpdatedBy = p.UpdatedBy,
+            UpdatedAt = p.UpdatedAt
+        }).ToList());
+    }
+
+    /// <summary>
+    /// Update a system prompt by key.
+    /// </summary>
+    [HttpPut("prompts/{key}")]
+    public async Task<ActionResult<SystemPromptDto>> UpdatePrompt(string key, [FromBody] SystemPromptUpdateDto dto)
+    {
+        var author = User.FindFirst("name")?.Value ?? User.Identity?.Name ?? "Admin";
+        var updated = await _prompts.UpdateAsync(key, dto.PromptText, author);
+        if (updated == null) return NotFound();
+
+        return Ok(new SystemPromptDto
+        {
+            Id = updated.Id,
+            Key = updated.Key,
+            DisplayName = updated.DisplayName,
+            Description = updated.Description,
+            PromptText = updated.PromptText,
+            UpdatedBy = updated.UpdatedBy,
+            UpdatedAt = updated.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Reset a system prompt to its hardcoded default.
+    /// </summary>
+    [HttpPost("prompts/{key}/reset")]
+    public async Task<ActionResult<SystemPromptDto>> ResetPrompt(string key)
+    {
+        var author = User.FindFirst("name")?.Value ?? User.Identity?.Name ?? "Admin";
+        var updated = await _prompts.ResetToDefaultAsync(key, author);
+        if (updated == null) return NotFound();
+
+        return Ok(new SystemPromptDto
+        {
+            Id = updated.Id,
+            Key = updated.Key,
+            DisplayName = updated.DisplayName,
+            Description = updated.Description,
+            PromptText = updated.PromptText,
+            UpdatedBy = updated.UpdatedBy,
+            UpdatedAt = updated.UpdatedAt
         });
     }
 }

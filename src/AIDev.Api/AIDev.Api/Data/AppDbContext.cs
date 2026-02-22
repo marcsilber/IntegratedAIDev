@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<AgentReview> AgentReviews => Set<AgentReview>();
     public DbSet<ArchitectReview> ArchitectReviews => Set<ArchitectReview>();
     public DbSet<CodeReview> CodeReviews => Set<CodeReview>();
+    public DbSet<SystemPrompt> SystemPrompts => Set<SystemPrompt>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -134,6 +135,17 @@ public class AppDbContext : DbContext
                 .WithMany(d => d.CodeReviews)
                 .HasForeignKey(e => e.DevRequestId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SystemPrompt>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.DisplayName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Description).IsRequired();
+            entity.Property(e => e.PromptText).IsRequired();
+            entity.Property(e => e.UpdatedBy).HasMaxLength(200);
+            entity.HasIndex(e => e.Key).IsUnique();
         });
     }
 }

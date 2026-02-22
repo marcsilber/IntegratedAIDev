@@ -881,4 +881,34 @@ export async function getDeployStatus(): Promise<DeployStatus> {
   return data;
 }
 
+// ── System Prompt Types & Functions ───────────────────────────────────────
+
+export interface SystemPrompt {
+  id: number;
+  key: string;
+  displayName: string;
+  description: string;
+  promptText: string;
+  updatedBy: string | null;
+  updatedAt: string;
+}
+
+export async function getSystemPrompts(): Promise<SystemPrompt[]> {
+  const { data } = await api.get("/admin/prompts");
+  return data;
+}
+
+export async function updateSystemPrompt(
+  key: string,
+  promptText: string
+): Promise<SystemPrompt> {
+  const { data } = await api.put(`/admin/prompts/${key}`, { promptText });
+  return data;
+}
+
+export async function resetSystemPrompt(key: string): Promise<SystemPrompt> {
+  const { data } = await api.post(`/admin/prompts/${key}/reset`);
+  return data;
+}
+
 export default api;

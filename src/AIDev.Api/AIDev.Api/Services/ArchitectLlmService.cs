@@ -73,6 +73,7 @@ public class ArchitectLlmService : IArchitectLlmService
 {
     private readonly ChatClient _chatClient;
     private readonly IReferenceDocumentService _refDocs;
+    private readonly ISystemPromptService _systemPrompts;
     private readonly ILogger<ArchitectLlmService> _logger;
     private readonly string _modelName;
     private readonly float _temperature;
@@ -257,10 +258,12 @@ public class ArchitectLlmService : IArchitectLlmService
     public ArchitectLlmService(
         ILlmClientFactory clientFactory,
         IReferenceDocumentService refDocs,
+        ISystemPromptService systemPrompts,
         IConfiguration configuration,
         ILogger<ArchitectLlmService> logger)
     {
         _refDocs = refDocs;
+        _systemPrompts = systemPrompts;
         _logger = logger;
 
         _modelName = clientFactory.ModelName;
@@ -290,7 +293,8 @@ public class ArchitectLlmService : IArchitectLlmService
         _logger.LogInformation("Architect Step 1 — File Selection for request #{Id} '{Title}'",
             request.Id, request.Title);
 
-        var step1SystemPrompt = string.Format(FileSelectionSystemPrompt, _maxFilesToRead);
+        var step1SystemPrompt = string.Format(
+            _systemPrompts.GetPrompt(SystemPromptService.Keys.ArchitectFileSelection), _maxFilesToRead);
         var step1UserMessage = BuildFileSelectionUserMessage(request, repositoryMap, conversationHistory);
 
         var step1Messages = new List<ChatMessage>
@@ -362,7 +366,7 @@ public class ArchitectLlmService : IArchitectLlmService
             referenceContext.Length + repositoryMap.Length + fileContentsSerialized.Length + fixedOverhead);
 
         var step2SystemPrompt = string.Format(
-            SolutionProposalSystemPrompt,
+            _systemPrompts.GetPrompt(SystemPromptService.Keys.ArchitectSolution),
             referenceContext,
             repositoryMap,
             fileContentsSerialized,

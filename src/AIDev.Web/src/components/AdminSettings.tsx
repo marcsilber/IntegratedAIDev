@@ -19,6 +19,9 @@ import {
   triggerDeploy,
   triggerWorkflows,
   retryDeployment,
+  getSystemPrompts,
+  updateSystemPrompt,
+  resetSystemPrompt,
   type Project,
   type AgentConfig,
   type TokenBudget,
@@ -28,6 +31,7 @@ import {
   type StagedDeployment,
   type DeploymentTracking,
   type DeployStatus,
+  type SystemPrompt,
 } from "../services/api";
 
 export default function AdminSettings() {
@@ -55,6 +59,10 @@ export default function AdminSettings() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [prompts, setPrompts] = useState<SystemPrompt[]>([]);
+  const [promptDrafts, setPromptDrafts] = useState<Record<string, string>>({});
+  const [savingPrompt, setSavingPrompt] = useState<string | null>(null);
+  const [expandedPrompt, setExpandedPrompt] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -84,14 +92,19 @@ export default function AdminSettings() {
       setPipelineConfig(pipelineConfigData);
       if (pipelineConfigData) setPipelineDraft(pipelineConfigData);
       // Load deployment data
-      const [stagedData, deployData, statusData] = await Promise.all([
+      const [stagedData, deployData, statusData, promptsData] = await Promise.all([
         getStagedDeployments().catch(() => []),
         getDeployments().catch(() => []),
         getDeployStatus().catch(() => null),
+        getSystemPrompts().catch(() => []),
       ]);
       setStagedDeploys(stagedData);
       setDeployments(deployData);
       setDeployStatus(statusData);
+      setPrompts(promptsData);
+      const drafts: Record<string, string> = {};
+      promptsData.forEach((p: SystemPrompt) => { drafts[p.key] = p.promptText; });
+      setPromptDrafts(drafts);
     } catch {
       setError("Failed to load settings");
     } finally {
@@ -1134,6 +1147,160 @@ export default function AdminSettings() {
           </div>
         )}
       </div>
+
+      {/* System Prompts Editor */}
+      {prompts.length > 0 && (
+        <div className="dashboard-card" style={{ marginTop: "1.5rem" }}>
+          <h2>🧠 System Prompts</h2>
+          <p className="muted" style={{ fontSize: "0.85rem", marginBottom: "1rem" }}>
+            Edit the AI agent system prompts. Changes take effect immediately for new requests.
+            Use the Reset button to restore the original prompt.
+          </p>
+
+          {prompts.map((p) => {
+            const isExpanded = expandedPrompt === p.key;
+            const isDirty = promptDrafts[p.key] !== p.promptText;
+            const isSaving = savingPrompt === p.key;
+
+            return (
+              <div
+                key={p.key}
+                style={{
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  marginBottom: "0.75rem",
+                  backgroundColor: "var(--surface)",
+                }}
+              >
+                {/* Header — always visible */}
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "0.75rem 1rem",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => setExpandedPrompt(isExpanded ? null : p.key)}
+                >
+                  <div>
+                    <strong>{p.displayName}</strong>
+                    <span className="muted" style={{ marginLeft: "0.75rem", fontSize: "0.8rem" }}>
+                      {p.key}
+                    </span>
+                    {isDirty && (
+                      <span style={{
+                        marginLeft: "0.5rem",
+                        fontSize: "0.7rem",
+                        padding: "0.1rem 0.4rem",
+                        borderRadius: "4px",
+                        background: "var(--warning)",
+                        color: "#000",
+                        fontWeight: 600,
+                      }}>
+                        unsaved
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    {p.updatedBy && (
+                      <span className="muted" style={{ fontSize: "0.75rem" }}>
+                        Last edited by {p.updatedBy} — {new Date(p.updatedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                    <span style={{ fontSize: "1.2rem", color: "var(--text-muted)" }}>
+                      {isExpanded ? "▾" : "▸"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Expanded editor */}
+                {isExpanded && (
+                  <div style={{ padding: "0 1rem 1rem 1rem" }}>
+                    <p className="muted" style={{ fontSize: "0.8rem", marginBottom: "0.5rem" }}>
+                      {p.description}
+                    </p>
+                    <textarea
+                      value={promptDrafts[p.key] ?? p.promptText}
+                      onChange={(e) => setPromptDrafts({ ...promptDrafts, [p.key]: e.target.value })}
+                      rows={18}
+                      style={{
+                        width: "100%",
+                        fontFamily: "monospace",
+                        fontSize: "0.8rem",
+                        lineHeight: "1.4",
+                        padding: "0.75rem",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        backgroundColor: "var(--bg)",
+                        color: "var(--text)",
+                        resize: "vertical",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                    <div style={{ marginTop: "0.5rem", display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                      <button
+                        className="btn btn-primary"
+                        disabled={!isDirty || isSaving}
+                        onClick={async () => {
+                          setSavingPrompt(p.key);
+                          setError(null);
+                          setSuccessMsg(null);
+                          try {
+                            const updated = await updateSystemPrompt(p.key, promptDrafts[p.key]);
+                            setPrompts((prev) => prev.map((x) => (x.key === p.key ? updated : x)));
+                            setPromptDrafts((prev) => ({ ...prev, [p.key]: updated.promptText }));
+                            setSuccessMsg(`Prompt "${p.displayName}" saved successfully`);
+                          } catch {
+                            setError(`Failed to save prompt "${p.displayName}"`);
+                          } finally {
+                            setSavingPrompt(null);
+                          }
+                        }}
+                      >
+                        {isSaving ? "Saving..." : "Save Prompt"}
+                      </button>
+                      <button
+                        className="btn btn-secondary"
+                        disabled={isSaving}
+                        onClick={async () => {
+                          if (!confirm(`Reset "${p.displayName}" to the default prompt? This cannot be undone.`)) return;
+                          setSavingPrompt(p.key);
+                          setError(null);
+                          setSuccessMsg(null);
+                          try {
+                            const updated = await resetSystemPrompt(p.key);
+                            setPrompts((prev) => prev.map((x) => (x.key === p.key ? updated : x)));
+                            setPromptDrafts((prev) => ({ ...prev, [p.key]: updated.promptText }));
+                            setSuccessMsg(`Prompt "${p.displayName}" reset to default`);
+                          } catch {
+                            setError(`Failed to reset prompt "${p.displayName}"`);
+                          } finally {
+                            setSavingPrompt(null);
+                          }
+                        }}
+                      >
+                        Reset to Default
+                      </button>
+                      {isDirty && (
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => setPromptDrafts({ ...promptDrafts, [p.key]: p.promptText })}
+                        >
+                          Discard Changes
+                        </button>
+                      )}
+                      <span className="muted" style={{ fontSize: "0.75rem" }}>
+                        {(promptDrafts[p.key] ?? p.promptText).length.toLocaleString()} chars
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

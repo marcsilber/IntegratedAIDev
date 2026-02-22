@@ -486,3 +486,27 @@ public class DeployTriggerResponseDto
     public List<int> FailedPrs { get; set; } = new();
     public string Message { get; set; } = string.Empty;
 }
+
+// ── System Prompt DTOs ────────────────────────────────────────────────────
+
+/// <summary>
+/// System prompt as returned to the admin panel.
+/// </summary>
+public record SystemPromptDto
+{
+    public int Id { get; init; }
+    public string Key { get; init; } = string.Empty;
+    public string DisplayName { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string PromptText { get; init; } = string.Empty;
+    public string? UpdatedBy { get; init; }
+    public DateTime UpdatedAt { get; init; }
+}
+
+/// <summary>
+/// Payload for updating a system prompt.
+/// </summary>
+public record SystemPromptUpdateDto
+{
+    public string PromptText { get; init; } = string.Empty;
+}
