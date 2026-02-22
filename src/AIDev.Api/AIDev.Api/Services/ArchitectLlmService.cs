@@ -293,8 +293,9 @@ public class ArchitectLlmService : IArchitectLlmService
         _logger.LogInformation("Architect Step 1 — File Selection for request #{Id} '{Title}'",
             request.Id, request.Title);
 
-        var step1SystemPrompt = string.Format(
-            _systemPrompts.GetPrompt(SystemPromptService.Keys.ArchitectFileSelection), _maxFilesToRead);
+        var step1SystemPrompt = _systemPrompts
+            .GetPrompt(SystemPromptService.Keys.ArchitectFileSelection)
+            .Replace("{0}", _maxFilesToRead.ToString());
         var step1UserMessage = BuildFileSelectionUserMessage(request, repositoryMap, conversationHistory);
 
         var step1Messages = new List<ChatMessage>
@@ -365,15 +366,15 @@ public class ArchitectLlmService : IArchitectLlmService
             referenceContext.Length, repositoryMap.Length, fileContentsSerialized.Length,
             referenceContext.Length + repositoryMap.Length + fileContentsSerialized.Length + fixedOverhead);
 
-        var step2SystemPrompt = string.Format(
-            _systemPrompts.GetPrompt(SystemPromptService.Keys.ArchitectSolution),
-            referenceContext,
-            repositoryMap,
-            fileContentsSerialized,
-            productOwnerReview.Decision,
-            productOwnerReview.Reasoning,
-            productOwnerReview.AlignmentScore,
-            productOwnerReview.CompletenessScore);
+        var step2SystemPrompt = _systemPrompts
+            .GetPrompt(SystemPromptService.Keys.ArchitectSolution)
+            .Replace("{0}", referenceContext)
+            .Replace("{1}", repositoryMap)
+            .Replace("{2}", fileContentsSerialized)
+            .Replace("{3}", productOwnerReview.Decision.ToString())
+            .Replace("{4}", productOwnerReview.Reasoning)
+            .Replace("{5}", productOwnerReview.AlignmentScore.ToString())
+            .Replace("{6}", productOwnerReview.CompletenessScore.ToString());
 
         var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory, attachments);
 

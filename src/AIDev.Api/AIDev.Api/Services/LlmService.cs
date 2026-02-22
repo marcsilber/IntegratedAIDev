@@ -67,7 +67,7 @@ public class LlmService : ILlmService
         var sw = Stopwatch.StartNew();
 
         var promptTemplate = _systemPrompts.GetPrompt(SystemPromptService.Keys.ProductOwner);
-        var systemPrompt = string.Format(promptTemplate, _refDocs.GetSystemPromptContext());
+        var systemPrompt = promptTemplate.Replace("{0}", _refDocs.GetSystemPromptContext());
         var userMessage = BuildUserMessage(request, conversationHistory, existingRequests);
 
         _logger.LogInformation("Reviewing request #{RequestId} '{Title}' via {Model}",

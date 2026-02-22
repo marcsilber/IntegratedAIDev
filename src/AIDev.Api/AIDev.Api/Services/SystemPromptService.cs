@@ -117,8 +117,8 @@ public class SystemPromptService : ISystemPromptService
 
         foreach (var (key, def) in Defaults)
         {
-            var exists = await db.SystemPrompts.AnyAsync(p => p.Key == key);
-            if (!exists)
+            var existing = await db.SystemPrompts.FirstOrDefaultAsync(p => p.Key == key);
+            if (existing == null)
             {
                 db.SystemPrompts.Add(new SystemPrompt
                 {
@@ -130,6 +130,14 @@ public class SystemPromptService : ISystemPromptService
                     UpdatedAt = DateTime.UtcNow
                 });
                 _logger.LogInformation("Seeded default system prompt: {Key}", key);
+            }
+            else if (existing.UpdatedBy == null)
+            {
+                // Re-seed prompts that haven't been manually edited by an admin
+                existing.PromptText = def.PromptText;
+                existing.Description = def.Description;
+                existing.UpdatedAt = DateTime.UtcNow;
+                _logger.LogInformation("Re-seeded system prompt: {Key} (no manual edits)", key);
             }
         }
 
@@ -254,7 +262,7 @@ public class SystemPromptService : ISystemPromptService
         You MUST respond with valid JSON only. No markdown, no code fences, no explanation outside the JSON.
         
         JSON SCHEMA:
-        {{
+        {
           "decision": "approve" | "reject" | "clarify",
           "reasoning": "string — your detailed explanation",
           "alignmentScore": number (0-100),
@@ -265,7 +273,7 @@ public class SystemPromptService : ISystemPromptService
           "tags": ["string"] | null,
           "isDuplicate": boolean,
           "duplicateOfRequestId": number | null
-        }}
+        }
         """;
 
     private const string DefaultArchitectFileSelectionPrompt = """
@@ -316,44 +324,44 @@ public class SystemPromptService : ISystemPromptService
         TASK: Design a technical solution for the development request below.
 
         RESPONSE FORMAT (strict JSON — no markdown, no code fences, just the JSON object):
-        {{
+        {
           "solutionSummary": "2-3 sentence overview of the approach",
           "approach": "Detailed technical approach - what patterns to use, why",
           "impactedFiles": [
-            {{
+            {
               "path": "src/AIDev.Api/AIDev.Api/Controllers/RequestsController.cs",
               "action": "modify",
               "description": "Add new GET endpoint for filtered request search",
               "estimatedLinesChanged": 25
-            }}
+            }
           ],
           "newFiles": [
-            {{
+            {
               "path": "src/AIDev.Api/AIDev.Api/Services/SearchService.cs",
               "description": "New service encapsulating search logic",
               "estimatedLines": 80
-            }}
+            }
           ],
-          "dataMigration": {{
+          "dataMigration": {
             "required": false,
             "description": null,
             "steps": []
-          }},
+          },
           "breakingChanges": [],
           "dependencyChanges": [
-            {{
+            {
               "package": "SomePackage",
               "action": "add",
               "version": "1.2.3",
               "reason": "Required for full-text search"
-            }}
+            }
           ],
           "risks": [
-            {{
+            {
               "description": "The existing search endpoint may need deprecation",
               "severity": "low",
               "mitigation": "Add backward-compatible alias"
-            }}
+            }
           ],
           "estimatedComplexity": "low | medium | high | unknown",
           "estimatedEffort": "e.g. 2-4 hours",
@@ -367,7 +375,7 @@ public class SystemPromptService : ISystemPromptService
           "testingNotes": "Test with various filter combinations; verify pagination",
           "architecturalNotes": "Follows existing service pattern; no new patterns introduced",
           "clarificationQuestions": []
-        }}
+        }
 
         RULES:
         1. ROOT CAUSE FIRST: Before proposing any fix, identify and clearly state the ROOT CAUSE
