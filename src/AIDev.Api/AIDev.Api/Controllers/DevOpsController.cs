@@ -443,6 +443,129 @@ public class DevOpsController : ControllerBase
             return BadRequest(new { error = $"Query failed: {ex.Message}" });
         }
     }
+
+    /// <summary>
+    /// Diagnostic: check what architect candidates the background service would find.
+    /// </summary>
+    [HttpGet("architect-candidates")]
+    public async Task<ActionResult> GetArchitectCandidates()
+    {
+        var maxReviews = int.Parse(_configuration["ArchitectAgent:MaxReviewsPerRequest"] ?? "3");
+        var batchSize = int.Parse(_configuration["ArchitectAgent:BatchSize"] ?? "3");
+
+        var candidates = await _db.DevRequests
+            .Include(r => r.Comments)
+            .Where(r =>
+                (r.Status == RequestStatus.Triaged && r.ArchitectReviewCount == 0)
+                ||
+                (r.Status == RequestStatus.ArchitectReview
+                 && r.ArchitectReviewCount < maxReviews
+                 && r.Comments.Any(c => !c.IsAgentComment
+                     && c.CreatedAt > (r.LastArchitectReviewAt ?? DateTime.MinValue)))
+            )
+            .OrderBy(r => r.CreatedAt)
+            .Take(batchSize)
+            .Select(r => new
+            {
+                r.Id,
+                r.Title,
+                Status = r.Status.ToString(),
+                r.ArchitectReviewCount,
+                r.LastArchitectReviewAt,
+                HumanComments = r.Comments
+                    .Where(c => !c.IsAgentComment)
+                    .Select(c => new { c.Id, c.CreatedAt, ContentPreview = c.Content.Substring(0, Math.Min(100, c.Content.Length)) })
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return Ok(new
+        {
+            maxReviews,
+            batchSize,
+            candidateCount = candidates.Count,
+            candidates
+        });
+    }
+
+    /// <summary>
+    /// Diagnostic: run the architect analysis for a specific request and return the result or error.
+    /// This calls the same code path as the background service.
+    /// </summary>
+    [HttpPost("test-architect/{requestId}")]
+    public async Task<ActionResult> TestArchitect(
+        int requestId,
+        [FromServices] IArchitectLlmService architectLlmService,
+        [FromServices] ICodebaseService codebaseService)
+    {
+        try
+        {
+            var request = await _db.DevRequests
+                .Include(r => r.Comments)
+                .Include(r => r.Project)
+                .Include(r => r.AgentReviews)
+                .Include(r => r.ArchitectReviews)
+                .Include(r => r.Attachments)
+                .FirstOrDefaultAsync(r => r.Id == requestId);
+
+            if (request == null)
+                return NotFound(new { error = $"Request #{requestId} not found" });
+
+            var poReview = request.AgentReviews
+                .OrderByDescending(r => r.CreatedAt)
+                .FirstOrDefault();
+            if (poReview == null)
+                return BadRequest(new { error = "No PO review found" });
+
+            if (request.Project == null)
+                return BadRequest(new { error = "No project linked" });
+
+            var owner = request.Project.GitHubOwner;
+            var repo = request.Project.GitHubRepo;
+            var repoMap = await codebaseService.GetRepositoryMapAsync(owner, repo);
+
+            async Task<Dictionary<string, string>> FileReader(IEnumerable<string> files)
+                => await codebaseService.GetFileContentsAsync(owner, repo, files);
+
+            var conversationHistory = request.ArchitectReviewCount > 0
+                ? request.Comments
+                    .Where(c => c.ArchitectReviewId != null
+                        || (!c.IsAgentComment && c.CreatedAt > (request.LastArchitectReviewAt ?? DateTime.MinValue)))
+                    .OrderBy(c => c.CreatedAt)
+                    .ToList()
+                : null;
+
+            var result = await architectLlmService.AnalyseRequestAsync(
+                request, poReview, repoMap, FileReader, conversationHistory,
+                request.Attachments?.ToList());
+
+            return Ok(new
+            {
+                message = "Architect test completed successfully",
+                solutionSummary = result.SolutionSummary,
+                approach = result.Approach?.Substring(0, Math.Min(500, result.Approach?.Length ?? 0)),
+                feedbackResponse = result.FeedbackResponse,
+                estimatedComplexity = result.EstimatedComplexity,
+                filesRead = result.FilesRead.Count,
+                step1Tokens = result.Step1PromptTokens + result.Step1CompletionTokens,
+                step2Tokens = result.Step2PromptTokens + result.Step2CompletionTokens,
+                modelUsed = result.ModelUsed,
+                durationMs = result.TotalDurationMs
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "DevOps: test-architect failed for request #{RequestId}", requestId);
+            return StatusCode(500, new
+            {
+                error = "Architect test failed",
+                exceptionType = ex.GetType().Name,
+                message = ex.Message,
+                innerException = ex.InnerException?.Message,
+                stackTrace = ex.StackTrace?[..Math.Min(1000, ex.StackTrace?.Length ?? 0)]
+            });
+        }
+    }
 }
 
 /// <summary>
