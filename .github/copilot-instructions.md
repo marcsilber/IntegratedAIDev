@@ -50,6 +50,30 @@
 - `DeploymentRetryCount` on DevRequest tracks auto-retry attempts for failed deployments
 - Copilot fields on DevRequest track implementation session state
 
+## DevOps API (Agent / Automation Access)
+The deployed API at `https://aidev-api.azurewebsites.net` requires Entra ID auth for normal endpoints. For agent/automation access, use the **DevOps controller** which is gated by an API key instead.
+
+- **Base URL**: `https://aidev-api.azurewebsites.net/api/devops/`
+- **Auth Header**: `X-Dev-Key: devops-aidev-2026-kx9Qm4vR7wPz`
+- **Endpoints**:
+  - `GET /requests` — List requests. Query params: `status`, `copilotStatus`, `issueNumber`, `projectId`, `limit` (default 50)
+  - `GET /request/{id}` — Full request detail including reviews, comments, attachments
+  - `POST /reset-implementation/{id}?reason=...` — Reset a stuck request back to Approved so Copilot retries
+  - `POST /set-status/{id}` — Body: `{ "status": "Approved" }` — Directly change request status
+  - `GET /health` — DB stats, background service config, deployment mode
+  - `POST /query` — Body: `{ "sql": "SELECT ...", "maxRows": 100 }` — Read-only SQL (SELECT only, 10s timeout)
+
+**Example (PowerShell)**:
+```powershell
+$headers = @{ "X-Dev-Key" = "devops-aidev-2026-kx9Qm4vR7wPz" }
+# Find request for issue #26
+Invoke-RestMethod "https://aidev-api.azurewebsites.net/api/devops/requests?issueNumber=26" -Headers $headers
+# Reset a stuck implementation
+Invoke-RestMethod "https://aidev-api.azurewebsites.net/api/devops/reset-implementation/14?reason=PR+stuck" -Method POST -Headers $headers
+# Run a diagnostic query
+Invoke-RestMethod "https://aidev-api.azurewebsites.net/api/devops/query" -Method POST -Headers $headers -ContentType "application/json" -Body '{"sql":"SELECT Id, Title, Status, CopilotStatus FROM DevRequests","maxRows":20}'
+```
+
 ## Important Rules
 - Do NOT modify files outside the solution scope unless fixing a direct dependency
 - Do NOT introduce new dependencies unless specified in the solution
