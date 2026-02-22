@@ -374,6 +374,7 @@ public class SystemPromptService : ISystemPromptService
           ],
           "testingNotes": "Test with various filter combinations; verify pagination",
           "architecturalNotes": "Follows existing service pattern; no new patterns introduced",
+          "feedbackResponse": "Direct response to any human feedback/questions from the conversation history. null if this is the first review.",
           "clarificationQuestions": []
         }
 
@@ -442,6 +443,17 @@ public class SystemPromptService : ISystemPromptService
             suggests the issue is "already fixed" — your code analysis is WRONG. The image
             is ground truth. Re-examine the code more carefully to find what you missed.
             Never conclude "no changes needed" if a screenshot shows otherwise.
+        16. REVISION & HUMAN FEEDBACK: When the user message includes a "HUMAN FEEDBACK" section,
+            this is a REVISION of a prior proposal. You MUST:
+            a) Read every human comment carefully.
+            b) Directly answer every question or concern in the "feedbackResponse" field.
+            c) Adjust your solution based on the feedback — do NOT just repeat the prior proposal.
+            d) If the human asks a question (e.g. "Is it the agent or the code adding X?"),
+               investigate the code and give a clear, specific answer.
+            e) If the human's feedback doesn't require solution changes, explain WHY in
+               feedbackResponse and confirm what you kept the same and why.
+            The feedbackResponse field is MANDATORY when human feedback is present. Ignoring
+            human feedback is the worst possible outcome — it wastes the reviewer's time.
         """;
 
     private const string DefaultCodeReviewPrompt = """

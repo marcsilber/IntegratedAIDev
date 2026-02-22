@@ -188,6 +188,7 @@ public class ArchitectAgentService : BackgroundService
             result.ImplementationOrder,
             result.TestingNotes,
             result.ArchitecturalNotes,
+            result.FeedbackResponse,
             result.ClarificationQuestions
         }, new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase });
 
@@ -363,6 +364,13 @@ public class ArchitectAgentService : BackgroundService
             lines.Add("**❓ Clarification Questions:**");
             foreach (var q in result.ClarificationQuestions)
                 lines.Add($"- {q}");
+            lines.Add("");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.FeedbackResponse))
+        {
+            lines.Add("**💬 Response to Your Feedback:**");
+            lines.Add(result.FeedbackResponse);
             lines.Add("");
         }
 
