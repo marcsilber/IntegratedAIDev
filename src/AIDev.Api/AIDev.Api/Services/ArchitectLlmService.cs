@@ -267,16 +267,18 @@ public class ArchitectLlmService : IArchitectLlmService
         _systemPrompts = systemPrompts;
         _logger = logger;
 
-        _modelName = clientFactory.ModelName;
+        // Allow architect to use a different (stronger) model than the default
+        _modelName = configuration["ArchitectAgent:ModelName"]
+            ?? clientFactory.ModelName;
         _temperature = float.Parse(configuration["ArchitectAgent:Temperature"] ?? "0.2");
         _maxTokens = int.Parse(configuration["ArchitectAgent:MaxTokens"] ?? "4000");
         _maxFilesToRead = int.Parse(configuration["ArchitectAgent:MaxFilesToRead"] ?? "20");
-        // Max input chars: GitHub Models free tier allows 8K tokens for gpt-4o-mini.
-        // Reserve space for output tokens. ~4 chars per token.
+        // Max input chars: gpt-4o supports 128K context. ~4 chars per token.
         var maxInputTokens = int.Parse(configuration["ArchitectAgent:MaxInputTokens"] ?? "6000");
         _maxInputChars = maxInputTokens * 4;
 
-        _chatClient = clientFactory.CreateChatClient();
+        _chatClient = clientFactory.CreateChatClient(_modelName);
+        _logger.LogInformation("Architect agent using model: {Model}", _modelName);
     }
 
     public async Task<ArchitectSolutionResult> AnalyseRequestAsync(
@@ -328,6 +330,62 @@ public class ArchitectLlmService : IArchitectLlmService
 
         _logger.LogInformation("Fetched {Count}/{Requested} files from repository",
             fileContents.Count, selectedFiles.Count);
+
+        // ── Step 1b: Iterative File Lookup ──────────────────────
+        // After reading the initial files, give the model a chance to request
+        // additional files it discovered are needed (e.g. referenced services,
+        // interfaces, or config files mentioned in the code it just read).
+
+        if (fileContents.Count > 0 && selectedFiles.Count < _maxFilesToRead)
+        {
+            var remainingBudget = _maxFilesToRead - selectedFiles.Count;
+            var step1bUserMessage = BuildIterativeFileSelectionMessage(
+                request, repositoryMap, fileContents, selectedFiles, remainingBudget);
+
+            var step1bMessages = new List<ChatMessage>
+            {
+                new SystemChatMessage(step1SystemPrompt),
+                new UserChatMessage(step1bUserMessage)
+            };
+
+            try
+            {
+                ChatCompletion step1bCompletion = await _chatClient.CompleteChatAsync(step1bMessages, step1Options);
+                var step1bResponse = step1bCompletion.Content[0].Text;
+                step1PromptTokens += (int)(step1bCompletion.Usage?.InputTokenCount ?? 0);
+                step1CompletionTokens += (int)(step1bCompletion.Usage?.OutputTokenCount ?? 0);
+
+                var additionalFiles = ParseFileSelectionResponse(step1bResponse)
+                    .Where(f => !selectedFiles.Contains(f, StringComparer.OrdinalIgnoreCase))
+                    .Take(remainingBudget)
+                    .ToList();
+
+                if (additionalFiles.Count > 0)
+                {
+                    _logger.LogInformation(
+                        "Architect Step 1b — requesting {Count} additional files: {Files}",
+                        additionalFiles.Count, string.Join(", ", additionalFiles));
+
+                    var additionalContents = await fileReader(additionalFiles);
+                    foreach (var (path, content) in additionalContents)
+                        fileContents[path] = content;
+
+                    selectedFiles.AddRange(additionalFiles);
+
+                    _logger.LogInformation(
+                        "Architect Step 1b complete — total files: {Count}, step1 tokens: {Tokens}",
+                        fileContents.Count, step1PromptTokens + step1CompletionTokens);
+                }
+                else
+                {
+                    _logger.LogInformation("Architect Step 1b — no additional files needed");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Architect Step 1b failed — continuing with initial file selection");
+            }
+        }
 
         // ── Step 2: Solution Proposal ───────────────────────────
 
@@ -471,6 +529,54 @@ public class ArchitectLlmService : IArchitectLlmService
                 sb.AppendLine($"[{source}] {comment.Content}");
             }
         }
+
+        return sb.ToString();
+    }
+
+    private static string BuildIterativeFileSelectionMessage(
+        DevRequest request,
+        string repositoryMap,
+        Dictionary<string, string> fileContents,
+        List<string> alreadySelected,
+        int remainingBudget)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("DEVELOPMENT REQUEST:");
+        sb.AppendLine($"Title: {request.Title}");
+        sb.AppendLine($"Type: {request.RequestType}");
+        sb.AppendLine($"Description: {request.Description}");
+
+        sb.AppendLine();
+        sb.AppendLine("REPOSITORY MAP:");
+        sb.AppendLine(repositoryMap);
+
+        sb.AppendLine();
+        sb.AppendLine("FILES ALREADY SELECTED AND READ:");
+        foreach (var path in alreadySelected)
+            sb.AppendLine($"  - {path}");
+
+        sb.AppendLine();
+        sb.AppendLine("CONTENTS OF SELECTED FILES (summary of what was found):");
+        foreach (var (path, content) in fileContents.OrderBy(f => f.Key))
+        {
+            // Include first 500 chars so the model can see what's in each file
+            var preview = content.Length > 500 ? content[..500] + "\n[...truncated]" : content;
+            sb.AppendLine($"=== {path} ===");
+            sb.AppendLine(preview);
+            sb.AppendLine();
+        }
+
+        sb.AppendLine();
+        sb.AppendLine($"TASK: Based on the code you've now read, do you need any ADDITIONAL files to design a complete solution?");
+        sb.AppendLine($"You can select up to {remainingBudget} more files.");
+        sb.AppendLine("Look for:");
+        sb.AppendLine("- Services, interfaces, or classes referenced in the code you've read but not yet selected");
+        sb.AppendLine("- Config files (appsettings.json, Program.cs) if the code references configuration");
+        sb.AppendLine("- Related components, models, or DTOs that would be impacted");
+        sb.AppendLine("- CSS/style files if UI components reference them");
+        sb.AppendLine();
+        sb.AppendLine("Return ONLY a JSON array of additional file paths (NOT files already selected).");
+        sb.AppendLine("If no additional files are needed, return an empty array: []");
 
         return sb.ToString();
     }

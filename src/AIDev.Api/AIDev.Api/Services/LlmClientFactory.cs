@@ -1,4 +1,5 @@
 using System.ClientModel;
+using System.Collections.Concurrent;
 using OpenAI;
 using OpenAI.Chat;
 
@@ -6,17 +7,24 @@ namespace AIDev.Api.Services;
 
 /// <summary>
 /// Shared factory for creating OpenAI ChatClient instances.
-/// Used by both the Product Owner Agent and Architect Agent.
+/// Supports per-agent model overrides via CreateChatClient(modelName).
 /// </summary>
 public interface ILlmClientFactory
 {
+    /// <summary>Creates a ChatClient for the default model.</summary>
     ChatClient CreateChatClient();
+
+    /// <summary>Creates a ChatClient for a specific model (cached).</summary>
+    ChatClient CreateChatClient(string modelName);
+
+    /// <summary>The default model name from configuration.</summary>
     string ModelName { get; }
 }
 
 public class LlmClientFactory : ILlmClientFactory
 {
-    private readonly ChatClient _client;
+    private readonly OpenAIClient _openAiClient;
+    private readonly ConcurrentDictionary<string, ChatClient> _clients = new();
 
     public string ModelName { get; }
 
@@ -30,15 +38,16 @@ public class LlmClientFactory : ILlmClientFactory
             ?? throw new InvalidOperationException(
                 "GitHub:PersonalAccessToken is required for LLM access via GitHub Models.");
 
-        var openAiClient = new OpenAIClient(
+        _openAiClient = new OpenAIClient(
             new ApiKeyCredential(apiKey),
             new OpenAIClientOptions
             {
                 Endpoint = new Uri(endpoint)
             });
-
-        _client = openAiClient.GetChatClient(ModelName);
     }
 
-    public ChatClient CreateChatClient() => _client;
+    public ChatClient CreateChatClient() => CreateChatClient(ModelName);
+
+    public ChatClient CreateChatClient(string modelName) =>
+        _clients.GetOrAdd(modelName, name => _openAiClient.GetChatClient(name));
 }
