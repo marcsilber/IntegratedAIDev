@@ -19,6 +19,7 @@ public class ArchitectController : ControllerBase
     private readonly ICodebaseService _codebaseService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<ArchitectController> _logger;
+    private readonly IArchitectReferenceService _referenceService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -31,13 +32,25 @@ public class ArchitectController : ControllerBase
         IGitHubService gitHubService,
         ICodebaseService codebaseService,
         IConfiguration configuration,
-        ILogger<ArchitectController> logger)
+        ILogger<ArchitectController> logger,
+        IArchitectReferenceService referenceService)
     {
         _db = db;
         _gitHubService = gitHubService;
         _codebaseService = codebaseService;
         _configuration = configuration;
         _logger = logger;
+        _referenceService = referenceService;
+    }
+
+    /// <summary>
+    /// Get architect reference data including database schema, architecture overview, and design decisions.
+    /// </summary>
+    [HttpGet("reference")]
+    public ActionResult<ArchitectReferenceDto> GetReference()
+    {
+        var data = _referenceService.GetReferenceData(_db);
+        return Ok(data);
     }
 
     /// <summary>

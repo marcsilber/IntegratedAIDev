@@ -510,3 +510,135 @@ public record SystemPromptUpdateDto
 {
     public string PromptText { get; init; } = string.Empty;
 }
+
+// ── Architect Reference DTOs ──────────────────────────────────────────────
+
+/// <summary>
+/// Top-level architect reference data containing database schema,
+/// architecture overview, and design decisions.
+/// </summary>
+public record ArchitectReferenceDto
+{
+    /// <summary>Database schema extracted from EF Core metadata.</summary>
+    public List<TableSchemaDto> DatabaseSchema { get; init; } = new();
+
+    /// <summary>High-level system architecture overview.</summary>
+    public ArchitectureOverviewDto ArchitectureOverview { get; init; } = new();
+
+    /// <summary>Key architectural and design decisions.</summary>
+    public List<DesignDecisionDto> DesignDecisions { get; init; } = new();
+}
+
+/// <summary>
+/// Represents a database table with its columns and relationships.
+/// </summary>
+public record TableSchemaDto
+{
+    /// <summary>Database table name.</summary>
+    public string TableName { get; init; } = string.Empty;
+
+    /// <summary>C# entity class name.</summary>
+    public string EntityName { get; init; } = string.Empty;
+
+    /// <summary>Columns in this table.</summary>
+    public List<ColumnSchemaDto> Columns { get; init; } = new();
+
+    /// <summary>Foreign key relationships from this table.</summary>
+    public List<RelationshipDto> Relationships { get; init; } = new();
+}
+
+/// <summary>
+/// Represents a single column in a database table.
+/// </summary>
+public record ColumnSchemaDto
+{
+    /// <summary>Column name in the database.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Database data type.</summary>
+    public string DataType { get; init; } = string.Empty;
+
+    /// <summary>Whether the column allows null values.</summary>
+    public bool IsNullable { get; init; }
+
+    /// <summary>Whether this column is part of the primary key.</summary>
+    public bool IsPrimaryKey { get; init; }
+
+    /// <summary>Whether this column is a foreign key.</summary>
+    public bool IsForeignKey { get; init; }
+
+    /// <summary>Maximum length constraint, if any.</summary>
+    public int? MaxLength { get; init; }
+}
+
+/// <summary>
+/// Represents a foreign key relationship between two tables.
+/// </summary>
+public record RelationshipDto
+{
+    /// <summary>Source table name.</summary>
+    public string FromTable { get; init; } = string.Empty;
+
+    /// <summary>Source column names.</summary>
+    public List<string> FromColumns { get; init; } = new();
+
+    /// <summary>Target table name.</summary>
+    public string ToTable { get; init; } = string.Empty;
+
+    /// <summary>Target column names.</summary>
+    public List<string> ToColumns { get; init; } = new();
+
+    /// <summary>Delete behavior (e.g. Cascade, Restrict, SetNull).</summary>
+    public string DeleteBehavior { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// High-level architecture overview of the system.
+/// </summary>
+public record ArchitectureOverviewDto
+{
+    /// <summary>Name of the system.</summary>
+    public string SystemName { get; init; } = string.Empty;
+
+    /// <summary>Overall system description.</summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>Major system components.</summary>
+    public List<ComponentDto> Components { get; init; } = new();
+
+    /// <summary>Ordered steps describing the main data flow.</summary>
+    public List<string> DataFlow { get; init; } = new();
+}
+
+/// <summary>
+/// Describes a major system component.
+/// </summary>
+public record ComponentDto
+{
+    /// <summary>Component name.</summary>
+    public string Name { get; init; } = string.Empty;
+
+    /// <summary>Technology stack used.</summary>
+    public string Technology { get; init; } = string.Empty;
+
+    /// <summary>What this component does.</summary>
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>How this component interacts with other components.</summary>
+    public List<string> Interactions { get; init; } = new();
+}
+
+/// <summary>
+/// A key architectural or design decision.
+/// </summary>
+public record DesignDecisionDto
+{
+    /// <summary>Decision title.</summary>
+    public string Title { get; init; } = string.Empty;
+
+    /// <summary>Why this decision was made.</summary>
+    public string Rationale { get; init; } = string.Empty;
+
+    /// <summary>Trade-offs or implications of this decision.</summary>
+    public string Implications { get; init; } = string.Empty;
+}

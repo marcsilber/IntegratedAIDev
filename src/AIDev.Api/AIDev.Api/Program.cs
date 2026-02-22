@@ -24,6 +24,7 @@ else
 // ── Product Owner Agent ───────────────────────────────────────────────────
 builder.Services.AddSingleton<IReferenceDocumentService, ReferenceDocumentService>();
 builder.Services.AddSingleton<ISystemPromptService, SystemPromptService>();
+builder.Services.AddSingleton<IArchitectReferenceService, ArchitectReferenceService>();
 if (!string.IsNullOrWhiteSpace(gitHubToken))
 {
     builder.Services.AddSingleton<ILlmClientFactory, LlmClientFactory>();

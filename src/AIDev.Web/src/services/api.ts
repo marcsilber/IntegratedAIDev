@@ -911,4 +911,61 @@ export async function resetSystemPrompt(key: string): Promise<SystemPrompt> {
   return data;
 }
 
+// ── Architect Reference Types & Functions ─────────────────────────────────
+
+export interface ColumnSchema {
+  name: string;
+  dataType: string;
+  isNullable: boolean;
+  isPrimaryKey: boolean;
+  isForeignKey: boolean;
+  maxLength: number | null;
+}
+
+export interface Relationship {
+  fromTable: string;
+  fromColumns: string[];
+  toTable: string;
+  toColumns: string[];
+  deleteBehavior: string;
+}
+
+export interface TableSchema {
+  tableName: string;
+  entityName: string;
+  columns: ColumnSchema[];
+  relationships: Relationship[];
+}
+
+export interface ArchComponent {
+  name: string;
+  technology: string;
+  description: string;
+  interactions: string[];
+}
+
+export interface ArchitectureOverview {
+  systemName: string;
+  description: string;
+  components: ArchComponent[];
+  dataFlow: string[];
+}
+
+export interface DesignDecision {
+  title: string;
+  rationale: string;
+  implications: string;
+}
+
+export interface ArchitectReference {
+  databaseSchema: TableSchema[];
+  architectureOverview: ArchitectureOverview;
+  designDecisions: DesignDecision[];
+}
+
+export async function getArchitectReference(): Promise<ArchitectReference> {
+  const { data } = await api.get("/architect/reference");
+  return data;
+}
+
 export default api;
