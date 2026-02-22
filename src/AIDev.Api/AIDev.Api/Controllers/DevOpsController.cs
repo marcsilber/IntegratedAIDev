@@ -273,6 +273,58 @@ public class DevOpsController : ControllerBase
     // ── System Health ────────────────────────────────────────────────────
 
     /// <summary>
+    /// Re-trigger architect review by resetting LastArchitectReviewAt so the
+    /// background service picks up existing human feedback again.
+    /// </summary>
+    [HttpPost("retrigger-architect/{requestId}")]
+    public async Task<ActionResult> RetriggerArchitect(int requestId, [FromQuery] string? reason = null)
+    {
+        var request = await _db.DevRequests
+            .Include(r => r.Comments)
+            .FirstOrDefaultAsync(r => r.Id == requestId);
+        if (request == null)
+            return NotFound(new { error = $"Request #{requestId} not found" });
+
+        if (request.Status != RequestStatus.ArchitectReview)
+            return BadRequest(new { error = $"Request #{requestId} is in '{request.Status}', not ArchitectReview" });
+
+        var maxReviews = int.Parse(_configuration["ArchitectAgent:MaxReviewsPerRequest"] ?? "3");
+        if (request.ArchitectReviewCount >= maxReviews)
+            return BadRequest(new { error = $"Request #{requestId} has reached max reviews ({maxReviews})" });
+
+        // Find the latest human comment
+        var lastHumanComment = request.Comments
+            .Where(c => !c.IsAgentComment)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefault();
+
+        if (lastHumanComment == null)
+            return BadRequest(new { error = "No human comments found to re-process" });
+
+        // Reset LastArchitectReviewAt to just before the human comment
+        var previousReviewAt = request.LastArchitectReviewAt;
+        request.LastArchitectReviewAt = lastHumanComment.CreatedAt.AddSeconds(-1);
+        request.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "DevOps: Re-triggered architect for request #{RequestId}. Reason: {Reason}. " +
+            "Reset LastArchitectReviewAt from {Old} to {New}",
+            requestId, reason ?? "manual", previousReviewAt, request.LastArchitectReviewAt);
+
+        return Ok(new
+        {
+            message = $"Architect re-triggered for request #{requestId}",
+            reason = reason ?? "manual",
+            lastHumanComment = lastHumanComment.Content[..Math.Min(200, lastHumanComment.Content.Length)],
+            lastArchitectReviewAt = request.LastArchitectReviewAt,
+            architectReviewCount = request.ArchitectReviewCount,
+            maxReviews,
+            note = "The background agent will pick this up on its next polling cycle"
+        });
+    }
+
+    /// <summary>
     /// Full system health check with DB stats and service configuration.
     /// </summary>
     [HttpGet("health")]
