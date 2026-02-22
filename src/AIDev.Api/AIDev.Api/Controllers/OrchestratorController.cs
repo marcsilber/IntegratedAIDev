@@ -244,16 +244,27 @@ public class OrchestratorController : ControllerBase
             async Task<Dictionary<string, string>> FileReader(IEnumerable<string> files)
                 => await _codebaseService.GetFileContentsAsync(owner, repo, files);
 
-            // 5. Call architect LLM
+            // 5. Build conversation history (same logic as ArchitectAgentService)
+            var conversationHistory = request.ArchitectReviewCount > 0
+                ? request.Comments
+                    .Where(c => c.ArchitectReviewId != null || (!c.IsAgentComment
+                        && c.CreatedAt > (request.LastArchitectReviewAt ?? DateTime.MinValue)))
+                    .OrderBy(c => c.CreatedAt)
+                    .ToList()
+                : null;
+
+            // 6. Call architect LLM
             var result = await _architectLlmService.AnalyseRequestAsync(
-                request, poReview, repoMap, FileReader, null, request.Attachments?.ToList());
+                request, poReview, repoMap, FileReader, conversationHistory, request.Attachments?.ToList());
             steps.Add(new
             {
                 step = "architect_llm",
                 ok = true,
                 summary = result.SolutionSummary,
                 complexity = result.EstimatedComplexity,
+                feedbackResponse = result.FeedbackResponse,
                 filesRead = result.FilesRead.Count,
+                conversationHistoryCount = conversationHistory?.Count ?? 0,
                 step1Tokens = result.Step1PromptTokens + result.Step1CompletionTokens,
                 step2Tokens = result.Step2PromptTokens + result.Step2CompletionTokens,
                 durationMs = result.TotalDurationMs
