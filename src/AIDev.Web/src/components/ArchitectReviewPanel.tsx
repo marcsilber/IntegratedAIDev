@@ -246,7 +246,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
             {review.dataMigration.steps?.length > 0 && (
               <ol style={{ margin: "0.5rem 0 0 1rem" }}>
                 {review.dataMigration.steps.map((step, i) => (
-                  <li key={i}>{step}</li>
+                  <li key={i}>{step.replace(/^\d+\.\s*/, "")}</li>
                 ))}
               </ol>
             )}
@@ -362,7 +362,7 @@ export default function ArchitectReviewPanel({ review, onUpdated }: Props) {
           </summary>
           <ol style={{ margin: "0.5rem 0 0 1.25rem" }}>
             {review.implementationOrder.map((step, i) => (
-              <li key={i}>{step}</li>
+              <li key={i}>{step.replace(/^\d+\.\s*/, "")}</li>
             ))}
           </ol>
         </details>
