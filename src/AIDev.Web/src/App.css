@@ -411,6 +411,22 @@ tr:hover {
   color: var(--text);
 }
 
+/* ── Formatted Markdown Text ──────────────────────────────────────────── */
+.formatted-text {
+  white-space: pre-wrap;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.formatted-text .formatted-heading {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-top: 0.5rem;
+  margin-bottom: 0.15rem;
+}
+
 .github-link {
   color: var(--primary);
   text-decoration: none;
