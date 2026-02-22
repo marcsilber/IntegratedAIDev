@@ -23,6 +23,38 @@ import {
 import ArchitectReviewPanel from "./ArchitectReviewPanel";
 import ImplementationPanel from "./ImplementationPanel";
 
+/** Renders a single line, converting **bold** markers into heading or strong elements. */
+function renderLine(line: string, lineIdx: number): React.ReactNode {
+  const headingMatch = line.match(/^\*\*([^*]+)\*\*(.*)/);
+  if (headingMatch) {
+    return (
+      <span key={lineIdx}>
+        <span className="formatted-heading">{headingMatch[1]}</span>
+        {headingMatch[2] && renderBoldSegments(headingMatch[2], lineIdx)}
+        {"\n"}
+      </span>
+    );
+  }
+  return <span key={lineIdx}>{renderBoldSegments(line, lineIdx)}{"\n"}</span>;
+}
+
+/** Converts inline **bold** markers to <strong> elements. */
+function renderBoldSegments(text: string, lineIdx: number): React.ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={`${lineIdx}-${i}`}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
+}
+
+/** Parses markdown-style text into formatted React elements with headings and bold. */
+function renderFormattedText(text: string): React.ReactNode {
+  const lines = text.split("\n");
+  return <span className="formatted-text">{lines.map((line, i) => renderLine(line, i))}</span>;
+}
+
 /** Renders an image by fetching through the authenticated API client. */
 function AuthImage({ requestId, attachment }: { requestId: number; attachment: Attachment }) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
@@ -364,7 +396,7 @@ export default function RequestDetail() {
                 </span>
               </div>
 
-              <p style={{ marginBottom: "0.75rem" }}>{request.latestAgentReview.reasoning}</p>
+              <p style={{ marginBottom: "0.75rem" }}>{renderFormattedText(request.latestAgentReview.reasoning)}</p>
 
               <div className="agent-scores" style={{ display: "flex", gap: "1.5rem", marginBottom: "0.75rem" }}>
                 <div>
@@ -502,7 +534,7 @@ export default function RequestDetail() {
                       {new Date(c.createdAt).toLocaleString()}
                     </span>
                   </div>
-                  <p style={{ whiteSpace: "pre-wrap" }}>{c.content}</p>
+                  <div>{renderFormattedText(c.content)}</div>
                 </div>
               ))}
             </div>
