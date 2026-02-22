@@ -25,6 +25,7 @@ public record ArchitectSolutionResult
     public required List<string> ImplementationOrder { get; init; }
     public required string TestingNotes { get; init; }
     public required string ArchitecturalNotes { get; init; }
+    public string? FeedbackResponse { get; init; }
     public List<string>? ClarificationQuestions { get; init; }
 
     // LLM metadata
@@ -511,12 +512,44 @@ public class ArchitectLlmService : IArchitectLlmService
 
         if (conversationHistory is { Count: > 0 })
         {
-            sb.AppendLine();
-            sb.AppendLine("CONVERSATION HISTORY (includes human feedback on prior proposals):");
-            foreach (var comment in conversationHistory.OrderBy(c => c.CreatedAt))
+            // Separate human feedback (critical) from agent history (context)
+            var humanComments = conversationHistory
+                .Where(c => !c.IsAgentComment)
+                .OrderBy(c => c.CreatedAt)
+                .ToList();
+            var agentComments = conversationHistory
+                .Where(c => c.IsAgentComment)
+                .OrderBy(c => c.CreatedAt)
+                .ToList();
+
+            // Show prior agent proposals as brief summaries (not full text)
+            if (agentComments.Count > 0)
             {
-                var source = comment.IsAgentComment ? "Agent" : "Human";
-                sb.AppendLine($"[{source}] {comment.Content}");
+                sb.AppendLine();
+                sb.AppendLine("PRIOR PROPOSALS (summaries of previous architect solutions):");
+                foreach (var comment in agentComments)
+                {
+                    // Extract just the first 200 chars as a summary
+                    var summary = comment.Content.Length > 200
+                        ? comment.Content[..200] + "..."
+                        : comment.Content;
+                    sb.AppendLine($"[Prior Proposal] {summary}");
+                }
+            }
+
+            // Human feedback gets its own prominent section
+            if (humanComments.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("═══════════════════════════════════════════════════");
+                sb.AppendLine("HUMAN FEEDBACK — YOU MUST ADDRESS EVERY POINT BELOW:");
+                sb.AppendLine("═══════════════════════════════════════════════════");
+                foreach (var comment in humanComments)
+                {
+                    sb.AppendLine($"[Human] {comment.Content}");
+                }
+                sb.AppendLine("═══════════════════════════════════════════════════");
+                sb.AppendLine("Your response MUST include a 'feedbackResponse' field that directly answers each point raised above.");
             }
         }
 
@@ -591,6 +624,7 @@ public class ArchitectLlmService : IArchitectLlmService
                     ImplementationOrder = parsed.ImplementationOrder ?? new(),
                     TestingNotes = parsed.TestingNotes ?? "",
                     ArchitecturalNotes = parsed.ArchitecturalNotes ?? "",
+                    FeedbackResponse = parsed.FeedbackResponse,
                     ClarificationQuestions = parsed.ClarificationQuestions
                 };
             }
@@ -653,6 +687,7 @@ public class ArchitectLlmService : IArchitectLlmService
         public List<string>? ImplementationOrder { get; set; }
         public string? TestingNotes { get; set; }
         public string? ArchitecturalNotes { get; set; }
+        public string? FeedbackResponse { get; set; }
         public List<string>? ClarificationQuestions { get; set; }
     }
 
