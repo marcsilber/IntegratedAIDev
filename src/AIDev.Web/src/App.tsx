@@ -11,6 +11,7 @@ import RequestForm from "./components/RequestForm";
 import RequestDetail from "./components/RequestDetail";
 import DashboardView from "./components/Dashboard";
 import AdminSettings from "./components/AdminSettings";
+import ArchitectReferencePanel from "./components/ArchitectReferencePanel";
 import logoImg from "./assets/silver-bullet-logo.png";
 import "./App.css";
 
@@ -41,6 +42,7 @@ function App() {
                   Requests
                 </NavLink>
                 <NavLink to="/dashboard">Dashboard</NavLink>
+                <NavLink to="/architect-reference">Architect</NavLink>
                 <NavLink to="/admin">Admin</NavLink>
                 <NavLink to="/new" className="nav-new-btn">
                   + New
@@ -71,6 +73,7 @@ function App() {
               <Route path="/new" element={<RequestForm />} />
               <Route path="/requests/:id" element={<RequestDetail />} />
               <Route path="/dashboard" element={<DashboardView />} />
+              <Route path="/architect-reference" element={<ArchitectReferencePanel />} />
               <Route path="/admin" element={<AdminSettings />} />
             </Routes>
           </AuthenticatedTemplate>
