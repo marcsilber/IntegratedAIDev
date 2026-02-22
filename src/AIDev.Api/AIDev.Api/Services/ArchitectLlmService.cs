@@ -198,11 +198,26 @@ public class ArchitectLlmService : IArchitectLlmService
         7. Include data migration steps if any database schema changes are needed.
         8. Identify any breaking changes to existing API contracts.
         9. IMAGE ATTACHMENTS: If image attachments are provided with the request (e.g. screenshots,
-           mockups, diagrams, error screenshots), carefully examine them and incorporate what you see
-           into your solution. Describe any relevant visual elements, UI layouts, error messages,
+           mockups, diagrams, logos, icons, new assets), carefully examine them and incorporate what
+           you see into your solution. Describe any relevant visual elements, UI layouts, error messages,
            or design details in your "approach" and "solutionSummary" fields so that the implementation
            agent (which cannot see the images) has full context to work from. Be specific — mention
            colours, layouts, component placement, text content, error messages, etc.
+
+           CRITICAL — ASSET ATTACHMENTS: When the request includes image attachments that are meant
+           to be used AS assets in the project (e.g. a new logo, icon, or image to display), the
+           "ATTACHMENTS" section in the user message below lists the EXACT file names and their
+           staging paths in `_temp-attachments/{requestId}/`. Your solution MUST:
+           a) List `_temp-attachments/{requestId}/{filename}` in impactedFiles with action "move"
+              and a description saying where to move it (e.g. `src/AIDev.Web/src/assets/`).
+           b) Include the destination file in impactedFiles or newFiles as appropriate.
+           c) In implementationOrder, include an explicit step: "Move
+              `_temp-attachments/{requestId}/{filename}` to `{destination}` and delete the
+              `_temp-attachments/` folder."
+           d) In the approach, describe the image (format, dimensions, what it depicts) so the
+              implementation agent can verify it is the correct type of asset.
+           e) List the code files that reference this asset and describe the exact change needed
+              (e.g. update the import path or `src` attribute).
         10. COMPLETENESS: List ALL files that need changes, not just the primary ones.
             For CSS/styling: check every stylesheet and component file for hardcoded colours,
             conflicting variable definitions, specificity issues, and inline styles.
@@ -338,7 +353,7 @@ public class ArchitectLlmService : IArchitectLlmService
             productOwnerReview.AlignmentScore,
             productOwnerReview.CompletenessScore);
 
-        var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory);
+        var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory, attachments);
 
         // Build multimodal user message with text + any image attachments for Step 2
         var step2UserChatMessage = LlmService.BuildMultimodalUserMessage(step2UserMessage, attachments, _logger);
@@ -426,7 +441,8 @@ public class ArchitectLlmService : IArchitectLlmService
 
     private static string BuildSolutionUserMessage(
         DevRequest request,
-        List<RequestComment>? conversationHistory)
+        List<RequestComment>? conversationHistory,
+        List<Attachment>? attachments = null)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Design a technical solution for the following request:");
@@ -442,6 +458,21 @@ public class ArchitectLlmService : IArchitectLlmService
             sb.AppendLine($"Expected Behavior: {request.ExpectedBehavior}");
         if (!string.IsNullOrWhiteSpace(request.ActualBehavior))
             sb.AppendLine($"Actual Behavior: {request.ActualBehavior}");
+
+        // Include attachment metadata so the LLM knows file names and staging paths
+        var imageAttachments = attachments?.Where(a => a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (imageAttachments is { Count: > 0 })
+        {
+            sb.AppendLine();
+            sb.AppendLine("ATTACHMENTS:");
+            sb.AppendLine($"Image files for this request are staged in `_temp-attachments/{request.Id}/` in the repository.");
+            foreach (var att in imageAttachments)
+            {
+                sb.AppendLine($"- `_temp-attachments/{request.Id}/{att.FileName}` ({att.ContentType}, {att.FileSizeBytes:N0} bytes)");
+            }
+            sb.AppendLine("These files are available for the implementation agent to move into the project.");
+            sb.AppendLine("Your solution MUST include instructions to move them to the correct location and delete the `_temp-attachments/` folder.");
+        }
 
         if (conversationHistory is { Count: > 0 })
         {

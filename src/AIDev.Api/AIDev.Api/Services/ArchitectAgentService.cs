@@ -218,7 +218,7 @@ public class ArchitectAgentService : BackgroundService
         await db.SaveChangesAsync(ct);
 
         // 8. Create formatted agent comment
-        var commentText = BuildAgentComment(result, architectReview);
+        var commentText = BuildAgentComment(result, architectReview, request.Attachments?.ToList());
         var comment = new RequestComment
         {
             DevRequestId = request.Id,
@@ -296,7 +296,7 @@ public class ArchitectAgentService : BackgroundService
         return false;
     }
 
-    private static string BuildAgentComment(ArchitectSolutionResult result, ArchitectReview review)
+    private static string BuildAgentComment(ArchitectSolutionResult result, ArchitectReview review, List<Attachment>? attachments = null)
     {
         var lines = new List<string>
         {
@@ -363,6 +363,19 @@ public class ArchitectAgentService : BackgroundService
             lines.Add("**❓ Clarification Questions:**");
             foreach (var q in result.ClarificationQuestions)
                 lines.Add($"- {q}");
+            lines.Add("");
+        }
+
+        // Attachment handling instructions
+        var imageAttachments = attachments?.Where(a => a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)).ToList();
+        if (imageAttachments is { Count: > 0 })
+        {
+            lines.Add("**📎 Attachment Handling:**");
+            foreach (var att in imageAttachments)
+                lines.Add($"- `_temp-attachments/{att.DevRequestId}/{att.FileName}` ({att.ContentType}, {att.FileSizeBytes:N0} bytes)");
+            lines.Add("- Move asset(s) to the correct project folder (e.g. `src/AIDev.Web/src/assets/`)");
+            lines.Add("- Update code references to point to the new location");
+            lines.Add("- Delete the `_temp-attachments/` folder after moving");
             lines.Add("");
         }
 
