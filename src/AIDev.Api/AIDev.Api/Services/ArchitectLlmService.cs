@@ -336,14 +336,28 @@ public class ArchitectLlmService : IArchitectLlmService
         var referenceContext = _refDocs.GetSystemPromptContext();
 
         // Truncate content to fit within the model's input token limit.
-        // System prompt template + JSON example is ~2500 chars. Reserve that + output budget.
-        var fixedOverhead = 3000; // system prompt structure + PO review fields
+        // Calculate overhead dynamically from the actual template + user message.
+        var rawTemplate = _systemPrompts.GetPrompt(SystemPromptService.Keys.ArchitectSolution);
+        // Template overhead = template length minus the 3 large placeholders ({0},{1},{2})
+        // {3}-{6} will be replaced with small PO review strings, estimate ~300 chars.
+        var templateOverhead = rawTemplate.Length - "{0}".Length - "{1}".Length - "{2}".Length + 300;
+        var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory, attachments);
+        var userMessageOverhead = step2UserMessage.Length;
+        // Images consume tokens too: ~765 tokens per image on vision models
+        var imageCount = attachments?.Count(a => a.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) ?? 0;
+        var imageTokenCost = imageCount * 765 * 4; // convert to chars estimate
+
+        var fixedOverhead = templateOverhead + userMessageOverhead + imageTokenCost;
         var availableForContent = Math.Max(1000, _maxInputChars - fixedOverhead);
 
         // Split budget: 40% reference context, 20% repo map, 40% file contents
         var maxRefChars = (int)(availableForContent * 0.4);
         var maxMapChars = (int)(availableForContent * 0.2);
         var maxFileChars = (int)(availableForContent * 0.4);
+
+        _logger.LogInformation(
+            "Step 2 budget — template: {Template}, userMsg: {UserMsg}, images: {Images}, available: {Available} chars",
+            templateOverhead, userMessageOverhead, imageTokenCost, availableForContent);
 
         if (referenceContext.Length > maxRefChars)
         {
@@ -375,8 +389,6 @@ public class ArchitectLlmService : IArchitectLlmService
             .Replace("{4}", productOwnerReview.Reasoning)
             .Replace("{5}", productOwnerReview.AlignmentScore.ToString())
             .Replace("{6}", productOwnerReview.CompletenessScore.ToString());
-
-        var step2UserMessage = BuildSolutionUserMessage(request, conversationHistory, attachments);
 
         // Build multimodal user message with text + any image attachments for Step 2
         var step2UserChatMessage = LlmService.BuildMultimodalUserMessage(step2UserMessage, attachments, _logger);
