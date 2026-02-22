@@ -18,7 +18,6 @@ public class DashboardController : ControllerBase
     {
         _db = db;
     }
-
     /// <summary>
     /// Get dashboard statistics.
     /// </summary>
@@ -69,5 +68,69 @@ public class DashboardController : ControllerBase
         };
 
         return Ok(dashboard);
+    }
+
+    /// <summary>
+    /// Get aggregate Code Review Agent statistics.
+    /// </summary>
+    [HttpGet("code-review-stats")]
+    public async Task<ActionResult<CodeReviewStatsDto>> GetCodeReviewStats()
+    {
+        var reviews = await _db.CodeReviews.ToListAsync();
+        var count = reviews.Count;
+
+        return Ok(new CodeReviewStatsDto
+        {
+            TotalReviews = count,
+            Approved = reviews.Count(r => r.Decision == CodeReviewDecision.Approved),
+            ChangesRequested = reviews.Count(r => r.Decision == CodeReviewDecision.ChangesRequested),
+            Failed = reviews.Count(r => r.Decision == CodeReviewDecision.Failed),
+            AverageQualityScore = count > 0
+                ? Math.Round(reviews.Average(r => r.QualityScore), 1) : 0,
+            DesignComplianceRate = count > 0
+                ? Math.Round((double)reviews.Count(r => r.DesignCompliance) / count * 100, 1) : 0,
+            SecurityPassRate = count > 0
+                ? Math.Round((double)reviews.Count(r => r.SecurityPass) / count * 100, 1) : 0,
+            CodingStandardsPassRate = count > 0
+                ? Math.Round((double)reviews.Count(r => r.CodingStandardsPass) / count * 100, 1) : 0,
+            TotalFilesReviewed = reviews.Sum(r => r.FilesChanged),
+            TotalLinesReviewed = reviews.Sum(r => r.LinesAdded + r.LinesRemoved),
+            TotalTokensUsed = reviews.Sum(r => r.PromptTokens + r.CompletionTokens),
+            AverageDurationMs = count > 0
+                ? Math.Round(reviews.Average(r => r.DurationMs), 0) : 0
+        });
+    }
+
+    /// <summary>
+    /// Get aggregate PR Monitor statistics (PR lifecycle tracking).
+    /// </summary>
+    [HttpGet("pr-monitor-stats")]
+    public async Task<ActionResult<PrMonitorStatsDto>> GetPrMonitorStats()
+    {
+        var requests = await _db.DevRequests
+            .Where(r => r.CopilotPrNumber != null)
+            .ToListAsync();
+
+        return Ok(new PrMonitorStatsDto
+        {
+            TotalPrsTracked = requests.Count,
+            PrsAwaitingReview = requests.Count(r =>
+                r.CopilotStatus == CopilotImplementationStatus.PrOpened),
+            PrsApprovedPendingMerge = requests.Count(r =>
+                r.CopilotStatus == CopilotImplementationStatus.ReviewApproved),
+            PrsMerged = requests.Count(r =>
+                r.CopilotStatus == CopilotImplementationStatus.PrMerged),
+            PrsFailed = requests.Count(r =>
+                r.CopilotStatus == CopilotImplementationStatus.Failed),
+            BranchesDeleted = requests.Count(r => r.BranchDeleted),
+            BranchesPending = requests.Count(r =>
+                r.CopilotBranchName != null && !r.BranchDeleted),
+            DeploySucceeded = requests.Count(r =>
+                r.DeploymentStatus == DeploymentStatus.Succeeded),
+            DeployFailed = requests.Count(r =>
+                r.DeploymentStatus == DeploymentStatus.Failed),
+            DeployRetrying = requests.Count(r =>
+                r.DeploymentRetryCount > 0 && r.DeploymentStatus == DeploymentStatus.Failed)
+        });
     }
 }

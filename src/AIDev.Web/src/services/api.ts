@@ -685,6 +685,48 @@ export async function getImplementationStats(): Promise<ImplementationStats> {
   return data;
 }
 
+// ── Code Review Agent Types ───────────────────────────────────────────────
+
+export interface CodeReviewStats {
+  totalReviews: number;
+  approved: number;
+  changesRequested: number;
+  failed: number;
+  averageQualityScore: number;
+  designComplianceRate: number;
+  securityPassRate: number;
+  codingStandardsPassRate: number;
+  totalFilesReviewed: number;
+  totalLinesReviewed: number;
+  totalTokensUsed: number;
+  averageDurationMs: number;
+}
+
+export async function getCodeReviewStats(): Promise<CodeReviewStats> {
+  const { data } = await api.get("/dashboard/code-review-stats");
+  return data;
+}
+
+// ── PR Monitor Types ──────────────────────────────────────────────────────
+
+export interface PrMonitorStats {
+  totalPrsTracked: number;
+  prsAwaitingReview: number;
+  prsApprovedPendingMerge: number;
+  prsMerged: number;
+  prsFailed: number;
+  branchesDeleted: number;
+  branchesPending: number;
+  deploySucceeded: number;
+  deployFailed: number;
+  deployRetrying: number;
+}
+
+export async function getPrMonitorStats(): Promise<PrMonitorStats> {
+  const { data } = await api.get("/dashboard/pr-monitor-stats");
+  return data;
+}
+
 // ── Pipeline Orchestrator Types ───────────────────────────────────────────
 
 export type DeploymentStatus = "None" | "Pending" | "InProgress" | "Succeeded" | "Failed";

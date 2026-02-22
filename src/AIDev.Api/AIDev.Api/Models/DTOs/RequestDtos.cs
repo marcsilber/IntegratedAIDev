@@ -365,6 +365,40 @@ public class ImplementationStatsDto
     public int ActiveSessions { get; set; }
 }
 
+// ── Code Review Agent DTOs ────────────────────────────────────────────────
+
+public class CodeReviewStatsDto
+{
+    public int TotalReviews { get; set; }
+    public int Approved { get; set; }
+    public int ChangesRequested { get; set; }
+    public int Failed { get; set; }
+    public double AverageQualityScore { get; set; }
+    public double DesignComplianceRate { get; set; }
+    public double SecurityPassRate { get; set; }
+    public double CodingStandardsPassRate { get; set; }
+    public int TotalFilesReviewed { get; set; }
+    public int TotalLinesReviewed { get; set; }
+    public int TotalTokensUsed { get; set; }
+    public double AverageDurationMs { get; set; }
+}
+
+// ── PR Monitor / Pipeline Stats ───────────────────────────────────────────
+
+public class PrMonitorStatsDto
+{
+    public int TotalPrsTracked { get; set; }
+    public int PrsAwaitingReview { get; set; }
+    public int PrsApprovedPendingMerge { get; set; }
+    public int PrsMerged { get; set; }
+    public int PrsFailed { get; set; }
+    public int BranchesDeleted { get; set; }
+    public int BranchesPending { get; set; }
+    public int DeploySucceeded { get; set; }
+    public int DeployFailed { get; set; }
+    public int DeployRetrying { get; set; }
+}
+
 // ── Pipeline Orchestrator DTOs ────────────────────────────────────────────
 
 public class PipelineHealthDto

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { getDashboard, getAgentStats, getArchitectStats, getImplementationStats, type Dashboard, type AgentStats, type ArchitectStats, type ImplementationStats } from "../services/api";
+import { getDashboard, getAgentStats, getArchitectStats, getImplementationStats, getCodeReviewStats, getPrMonitorStats, type Dashboard, type AgentStats, type ArchitectStats, type ImplementationStats, type CodeReviewStats, type PrMonitorStats } from "../services/api";
 import PipelineHealthPanel from "./PipelineHealthPanel";
 
 export default function DashboardView() {
@@ -8,6 +8,8 @@ export default function DashboardView() {
   const [agentStats, setAgentStats] = useState<AgentStats | null>(null);
   const [architectStats, setArchitectStats] = useState<ArchitectStats | null>(null);
   const [implStats, setImplStats] = useState<ImplementationStats | null>(null);
+  const [codeReviewStats, setCodeReviewStats] = useState<CodeReviewStats | null>(null);
+  const [prMonitorStats, setPrMonitorStats] = useState<PrMonitorStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,16 +19,20 @@ export default function DashboardView() {
 
   async function loadDashboard() {
     try {
-      const [dashData, statsData, archData, implData] = await Promise.all([
+      const [dashData, statsData, archData, implData, crData, prData] = await Promise.all([
         getDashboard(),
         getAgentStats().catch(() => null),
         getArchitectStats().catch(() => null),
         getImplementationStats().catch(() => null),
+        getCodeReviewStats().catch(() => null),
+        getPrMonitorStats().catch(() => null),
       ]);
       setDashboard(dashData);
       setAgentStats(statsData);
       setArchitectStats(archData);
       setImplStats(implData);
+      setCodeReviewStats(crData);
+      setPrMonitorStats(prData);
     } catch {
       setError("Failed to load dashboard");
     } finally {
@@ -278,6 +284,114 @@ export default function DashboardView() {
             <div className="breakdown-item">
               <span>Avg Completion Time</span>
               <span className="breakdown-count">{implStats.averageCompletionMinutes} min</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {codeReviewStats && codeReviewStats.totalReviews > 0 && (
+        <div className="dashboard-card" style={{ marginTop: "1.5rem" }}>
+          <h2>🔍 Code Review Agent</h2>
+          <div className="stats-grid" style={{ marginBottom: "1rem" }}>
+            <div className="stat-card">
+              <div className="stat-number">{codeReviewStats.totalReviews}</div>
+              <div className="stat-label">Total Reviews</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--success)" }}>{codeReviewStats.approved}</div>
+              <div className="stat-label">Approved</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--warning)" }}>{codeReviewStats.changesRequested}</div>
+              <div className="stat-label">Changes Requested</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--danger)" }}>{codeReviewStats.failed}</div>
+              <div className="stat-label">Failed</div>
+            </div>
+          </div>
+          <div className="breakdown-list">
+            <div className="breakdown-item">
+              <span>Avg Quality Score</span>
+              <span className="breakdown-count">{codeReviewStats.averageQualityScore}/10</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Design Compliance</span>
+              <span className="breakdown-count">{codeReviewStats.designComplianceRate}%</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Security Pass Rate</span>
+              <span className="breakdown-count">{codeReviewStats.securityPassRate}%</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Coding Standards</span>
+              <span className="breakdown-count">{codeReviewStats.codingStandardsPassRate}%</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Files Reviewed</span>
+              <span className="breakdown-count">{codeReviewStats.totalFilesReviewed}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Lines Reviewed</span>
+              <span className="breakdown-count">{codeReviewStats.totalLinesReviewed.toLocaleString()}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Total Tokens Used</span>
+              <span className="breakdown-count">{codeReviewStats.totalTokensUsed.toLocaleString()}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Avg Duration</span>
+              <span className="breakdown-count">{Math.round(codeReviewStats.averageDurationMs)}ms</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {prMonitorStats && prMonitorStats.totalPrsTracked > 0 && (
+        <div className="dashboard-card" style={{ marginTop: "1.5rem" }}>
+          <h2>📡 PR Monitor &amp; Deployment</h2>
+          <div className="stats-grid" style={{ marginBottom: "1rem" }}>
+            <div className="stat-card">
+              <div className="stat-number">{prMonitorStats.totalPrsTracked}</div>
+              <div className="stat-label">PRs Tracked</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--primary)" }}>{prMonitorStats.prsAwaitingReview}</div>
+              <div className="stat-label">Awaiting Review</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--success)" }}>{prMonitorStats.prsMerged}</div>
+              <div className="stat-label">Merged</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-number" style={{ color: "var(--danger)" }}>{prMonitorStats.prsFailed}</div>
+              <div className="stat-label">Failed</div>
+            </div>
+          </div>
+          <div className="breakdown-list">
+            <div className="breakdown-item">
+              <span>Approved Pending Merge</span>
+              <span className="breakdown-count">{prMonitorStats.prsApprovedPendingMerge}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Branches Cleaned Up</span>
+              <span className="breakdown-count">{prMonitorStats.branchesDeleted}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Branches Pending Cleanup</span>
+              <span className="breakdown-count">{prMonitorStats.branchesPending}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Deployments Succeeded</span>
+              <span className="breakdown-count" style={{ color: "var(--success)" }}>{prMonitorStats.deploySucceeded}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Deployments Failed</span>
+              <span className="breakdown-count" style={{ color: prMonitorStats.deployFailed > 0 ? "var(--danger)" : undefined }}>{prMonitorStats.deployFailed}</span>
+            </div>
+            <div className="breakdown-item">
+              <span>Auto-Retrying</span>
+              <span className="breakdown-count" style={{ color: prMonitorStats.deployRetrying > 0 ? "var(--warning)" : undefined }}>{prMonitorStats.deployRetrying}</span>
             </div>
           </div>
         </div>
