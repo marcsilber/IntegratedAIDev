@@ -11,7 +11,7 @@ import RequestForm from "./components/RequestForm";
 import RequestDetail from "./components/RequestDetail";
 import DashboardView from "./components/Dashboard";
 import AdminSettings from "./components/AdminSettings";
-import logoImg from "./assets/hero.png";
+import logoImg from "./assets/silver-bullet-logo.png";
 import "./App.css";
 
 function App() {
